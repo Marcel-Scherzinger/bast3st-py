@@ -1,11 +1,17 @@
 from __future__ import annotations
 
-from typing import NoReturn, TypeAlias, Literal
+from typing import NoReturn, Literal
 import abc
 from string import templatelib
 import itertools
 import typing
-from .helpers import ContainOpcodeT, RelationT, ArrayScopeT, SelectorOpcodeT
+
+type ArrayScopeT = Literal["io", "list"]
+type RelationT = Literal["==", "!=", "<=", ">=", "<", ">"]
+"""A comparison operator string to specify the desired relation"""
+
+type SelectorOpcodeT = Literal["var", "arrayitem", "arrayprop"]
+type ContainOpcodeT = Literal["contain_onlynum", "contain_num", "contain_text"]
 
 
 NO_BOOL_ON_CRITERION = "A criterion shouldn't be used in Python boolean expressions, you can't use Pythons and, or and not keywords on it, but & (all_of(...)), | (any_of(...)) and ~ (.negated) work!"
@@ -130,28 +136,28 @@ class Value(DecisionEntity, abc.ABC):
         return Transformed("abs", self)
 
     def contains_text(
-        self, val: IntoTextValue, *, sample_expected: str | None = None
+        self, val: IntoTextValue, *, sample_expected: IntoTextValue | None = None
     ) -> Criterion:
         return Contained(
             sub=val, sup=self, mode="contain_text", sample_expected=sample_expected
         )
 
     def contains_only_this_number(
-        self, val: IntoValue, *, sample_expected: str | None = None
+        self, val: IntoValue, *, sample_expected: IntoTextValue | None = None
     ) -> Criterion:
         return Contained(
             sub=val, sup=self, mode="contain_onlynum", sample_expected=sample_expected
         )
 
     def contains_this_number(
-        self, val: IntoValue, *, sample_expected: str | None = None
+        self, val: IntoValue, *, sample_expected: IntoTextValue | None = None
     ) -> Criterion:
         return Contained(
             sub=val, sup=self, mode="contain_num", sample_expected=sample_expected
         )
 
     def text_is_contained_in(
-        self, val: IntoTextValue, *, sample_expected: str | None = None
+        self, val: IntoTextValue, *, sample_expected: IntoTextValue | None = None
     ) -> Criterion:
         return Contained(
             sub=self, sup=val, mode="contain_text", sample_expected=sample_expected
@@ -188,9 +194,10 @@ class Value(DecisionEntity, abc.ABC):
         return self.pipe(trim)
 
 
-IntoTextValue: TypeAlias = str | templatelib.Template | Value
+type IntoTextValue = str | templatelib.Template | Value
 """Any type that can be converted into a :class:`Value` and is likely a text"""
-IntoValue: TypeAlias = IntoTextValue | float | int | bool
+
+type IntoValue = IntoTextValue | float | int | bool
 """Any type that can be converted into a :class:`Value`"""
 
 
@@ -244,10 +251,19 @@ class TransformSingleNoParam(Transformation):
 
 
 to_upper = TransformSingleNoParam("to_upper")
+""":class:`Transformation` converting a value to uppercase"""
+
 to_lower = TransformSingleNoParam("to_lower")
+""":class:`Transformation` converting a value to lowercase"""
+
 trim = TransformSingleNoParam("trim")
+""":class:`Transformation` removing all whitespace from start and end of the stringified value"""
+
 trim_start = TransformSingleNoParam("trim_start")
+""":class:`Transformation` removing all whitespace from the start of the stringified value"""
+
 trim_end = TransformSingleNoParam("trim_end")
+""":class:`Transformation` removing all whitespace from the end of the stringified value"""
 
 
 def concat(*clauses: IntoValue) -> Transformed:
@@ -305,7 +321,7 @@ class compare(Criterion):
         relation: RelationT,
         right: IntoValue,
         *,
-        sample_expected: str | None = None,
+        sample_expected: IntoTextValue | None = None,
     ) -> None:
         """
         Compare two future values with a given relation

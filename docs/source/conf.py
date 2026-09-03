@@ -23,7 +23,8 @@ extensions = [
     "sphinx.ext.autosummary",
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
-    "sphinx_autodoc_typehints",
+    "sphinx.ext.intersphinx",
+    # "sphinx_autodoc_typehints",
 ]
 
 templates_path = ["_templates"]
@@ -48,6 +49,7 @@ autodoc_typehints = "description"
 
 # Don't show class signature with the class' name.
 autodoc_class_signature = "separated"
+autodoc_type_aliases = {"AgentAssignment": "AgentAssignment"}
 
 autodoc_default_options = {
     "members": True,
@@ -55,3 +57,5 @@ autodoc_default_options = {
     "special-members": "__init__",
     "undoc-members": True,
 }
+
+intersphinx_mapping = {"python": ("https://docs.python.org/3.14", None)}
