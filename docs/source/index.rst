@@ -12,6 +12,8 @@ Bast3St documentation
    :alt: Python Version >= 3.14
 .. image:: https://img.shields.io/badge/Nix-flake-purple?logo=nixos&logoColor=white
    :alt: Nix flake
+.. image:: https://img.shields.io/badge/direnv-enabled-yellow
+   :alt: direnv enabled
 
 .. toctree::
    :maxdepth: 3
