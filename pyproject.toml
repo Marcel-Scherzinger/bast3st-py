@@ -18,3 +18,10 @@ build-backend = "setuptools.build_meta"
 packages = ["bast3st"]  #, "bast3st_cli"]
 package-dir = {"" = "src"}
 
+[dependency-groups]
+docs = [
+    "sphinx>=9.1.0",
+    "sphinx-autobuild>=2025.8.25",
+    "sphinx-rtd-theme>=3.1.0",
+]
+

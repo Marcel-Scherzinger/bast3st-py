@@ -33,7 +33,7 @@
           with python-pkgs; [
             sphinx
             sphinx-rtd-theme
-            sphinx-autodoc-typehints
+            sphinx-autodoc-typehints # not used
             sphinx-autobuild
           ]);
       in {
