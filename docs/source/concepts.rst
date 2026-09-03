@@ -23,6 +23,7 @@ Selectors
     - :func:`OUTPUT[number]<bast3st.decisions.OUTPUT>`: select one of the outputs the submission received during the current test
 - :class:`Array length<bast3st.decisions.FutureArray>`:
   number of elements in the respective :class:`FutureArray <bast3st.decisions.FutureArray>`
+
     - :func:`LIST("mylist").length <bast3st.decisions.LIST>`
     - :func:`INPUT.length <bast3st.decisions.INPUT>`
     - :func:`OUTPUT.length <bast3st.decisions.OUTPUT>`
