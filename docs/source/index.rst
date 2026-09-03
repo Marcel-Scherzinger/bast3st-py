@@ -8,7 +8,7 @@ Bast3St documentation
 
 .. toctree::
    :maxdepth: 3
-   :caption: Contents:
+   :caption: Contents
 
    concepts
    reference

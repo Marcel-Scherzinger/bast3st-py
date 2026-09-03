@@ -2,6 +2,41 @@
 Concepts
 ########
 
+Describing decisions
+====================
+
+There are multiple situations where you need to the describe how a
+submission should be evaluated and what is correct behaviour and what not.
+This can include the following:
+
+- Specify the success condition of a test case
+- Trigger actions like showing warnings depending on the submission
+- *Idea: Provide a formula for the allowed number of blocks (per type) a submission may use
+  (requires selectors that are not implemented yet)*
+
+This library thinks of decisions in the following way:
+
+1. You :any:`select <Selector>` values that are currently unknown
+   (as you don't know what submissions will be handed in in the future), ...
+2. ... :any:`transform <Transformation>` these values with multiple operations, ...
+3. ... and finally give them to a :any:`criterion <Criterion>`
+   that decides if the condition is satisfied.
+
+By using that model, this library only provides some predefined selectors,
+transformations and criteria that can be plugged together in multiple ways.
+
+The created tree of multiple different selector-, transformation- and criterion-nodes
+is then transformed to a JSON representation that can be stored or sent to a server.
+
+.. warning::
+
+   As this tree can only contain predefined stages plugged together,
+   you **can't define new functionality** for evaluating submissions
+   that can not be expressed by combining the predefined stages.
+   The generated JSON will be interpreted at a later point in time by
+   **another program that won't know anything about your modifications**
+   and deviations from the normal specification format which will
+   likely just cause errors.
 
 .. _placeholders-in-future:
 
@@ -9,8 +44,9 @@ Placeholders live in the future
 ===============================
 
 
-Available components
-====================
+
+Available decision components
+=============================
 
 
 Selectors
