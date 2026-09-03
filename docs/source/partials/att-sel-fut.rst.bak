@@ -1,0 +1,4 @@
+.. attention::
+
+        The values you receive are special instances of :class:`Selector`
+        and can be understood as placeholders. For more see :ref:`placeholders-in-future`

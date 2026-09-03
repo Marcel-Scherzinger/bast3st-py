@@ -2,12 +2,10 @@
 Reference
 #########
 
-.. automodule:: bast3st.base
-   :members:
-   :undoc-members:
-   :show-inheritance:
+Decision evaluation
+===================
 
-.. automodule:: bast3st.selectors
+.. automodule:: bast3st.decisions
    :members:
    :undoc-members:
    :show-inheritance:
