@@ -34,6 +34,7 @@
             sphinx
             sphinx-rtd-theme
             sphinx-autodoc-typehints
+            sphinx-autobuild
           ]);
       in {
         devShells.default = pkgs.mkShell {
