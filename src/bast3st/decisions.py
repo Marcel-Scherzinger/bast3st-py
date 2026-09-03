@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from typing import TypeAlias
+from typing import TypeAlias, Literal
 import abc
 from string import templatelib
 import itertools
-from .helpers import RelationT
+from .helpers import RelationT, ArrayScopeT, SelectorOpcodeT
 
 
 NO_BOOL_ON_CRITERION = "A criterion shouldn't be used in Python boolean expressions, you can't use Pythons and, or and not keywords on it, but & (all_of(...)), | (any_of(...)) and ~ (.negated) work!"
@@ -32,7 +32,7 @@ class Entity(abc.ABC):
 ################################
 
 
-class Value(Entity):
+class Value(Entity, abc.ABC):
     @classmethod
     def of(cls, val: IntoValue | None) -> Value | None:
         """Exactly like :any:`ofStrict` but returns `None` if input is `None`"""
@@ -52,7 +52,7 @@ class Value(Entity):
         elif isinstance(val, (str, int, bool, float)):
             return LitValue(val)
         elif isinstance(val, templatelib.Template):
-            return concat._from_template(val)
+            return _concat_from_template(val)
         raise TypeError(
             f"Unknown type for Value.of: {type(val)}, maybe you shouln't use this as a value ({val!r})"
         )
@@ -166,20 +166,19 @@ trim_start = TransformSingleNoParam("trim_start")
 trim_end = TransformSingleNoParam("trim_end")
 
 
-class concat(Transformed):
-    def __init__(self, *clauses: IntoValue) -> None:
-        super().__init__("concat", *[Value.of(c) for c in clauses])
+def concat(*clauses: IntoValue) -> Transformed:
+    return Transformed("concat", *[Value.of(c) for c in clauses])
 
-    @classmethod
-    def _from_template(cls, temp: templatelib.Template) -> concat:
-        return concat(
-            *tuple(
-                x
-                for pair in itertools.zip_longest(temp.strings, temp.values)
-                for x in pair
-                if not (isinstance(x, str) and x == "")
-            )[:-1]
-        )
+
+def _concat_from_template(temp: templatelib.Template) -> Transformed:
+    return concat(
+        *tuple(
+            x
+            for pair in itertools.zip_longest(temp.strings, temp.values)
+            for x in pair
+            if not (isinstance(x, str) and x == "")
+        )[:-1]
+    )
 
 
 ################################
@@ -302,3 +301,174 @@ class any_of(Criterion):
         return self._repr(*self._clauses)
 
     pass
+
+
+################################
+# Selectors
+################################
+
+
+class Selector(Value):
+    def __init__(self, opcode: SelectorOpcodeT, *args) -> None:
+        super().__init__()
+        self._opcode = opcode
+        self._args = args
+
+
+class FutureVariable(Selector):
+    def __init__(self, name: str) -> None:
+        super().__init__("var", name)
+
+    @property
+    def name(self):
+        return self._args[0]
+
+    def __repr__(self) -> str:
+        return f"VAR({self.name!r})"
+
+
+class FutureProperty(Selector):
+    # As soon as there are more future properties
+    # @typing.overload
+    # def __init__(
+    #     self, *, mode: Literal["array"], group: FutureArray, name: str
+    # ) -> None: ...
+
+    def __init__(self, *, mode: Literal["array"], group, name: str) -> None:
+        super().__init__(mode + "prop", group, name)
+        self._mode = mode
+
+    @property
+    def group(self):
+        return self._args[0]
+
+    @property
+    def name(self):
+        return self._args[1]
+
+    def __repr__(self) -> str:
+        if self._mode == "array" and self.name == "length":
+            return f"{self.group!r}.length"
+        raise ValueError(
+            f"FutureProperty selector called with unsupported arguments: {self._mode} {self.group} {self.name}"
+        )
+
+
+# TODO: think if key should be allowed to be numeric `Value`
+class FutureItem(Selector):
+    def __init__(self, array: FutureArray, key: int) -> None:
+        super().__init__("arrayitem", array, key)
+
+    @property
+    def array(self) -> FutureArray:
+        return self._args[0]
+
+    @property
+    def position(self) -> int:
+        return self._args[1]
+
+    def __repr__(self) -> str:
+        return f"{self.array!r}[{self.position}]"
+
+
+class FutureArray:
+    """
+    A :class:`FutureArray` represents a specific source of multiple
+    values that are available – somewhere in the future – during the
+    evaluation of a submission.
+
+    Examples are:
+        - :any:`INPUT`: access the input a submission got in the current test
+        - :any:`OUTPUT`: access the output a submission produced
+        - :any:`LIST(name) <LIST>`: access the list with the provided name
+
+    This type can be used similarily to a list of :class:`Selector`'s:
+
+    >>> first_input = INPUT.first # or INPUT[0]
+    >>> first_input
+    INPUT[0]
+    >>> last_output = OUTPUT.last # or OUTPUT[-1]
+    >>> last_output
+    OUTPUT[-1]
+    >>> mylist = LIST("mylist")
+    >>> second_item = mylist[1] # or mylist.index1(2)
+    >>> second_item
+    LIST("mylist")[1]
+    >>> length_of_mylist = mylist.length # don't use len(mylist)
+    >>> length_of_mylist
+    LIST("mylist").length
+
+    .. attention::
+
+        The values you receive are special instances of :class:`Selector`
+        and can be understood as placeholders.
+        For more see :ref:`placeholders-in-future`.
+    """
+
+    def __init__(self, kind: ArrayScopeT, name: str) -> None:
+        super().__init__()
+        self._kind: ArrayScopeT = kind
+        self._name: str = name
+
+    @property
+    def kind(self) -> ArrayScopeT:
+        return self._kind
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    def __getitem__(self, key: int) -> FutureItem:
+        return FutureItem(self, key)
+
+    @property
+    def last(self) -> FutureItem:
+        return self[-1]
+
+    @property
+    def length(self) -> FutureProperty:
+        return FutureProperty(mode="array", group=self, name="length")
+
+    @property
+    def first(self) -> FutureItem:
+        return self[0]
+
+    def from_start1(self, onebased_n: int) -> FutureItem:
+        assert onebased_n > 0, f"{onebased_n=} should be at least 1"
+        return self[onebased_n - 1]
+
+    def from_end1(self, onebased_n: int) -> FutureItem:
+        assert onebased_n > 0, f"{onebased_n=} should be at least 1"
+        return self[-onebased_n]
+
+    def index1(self, onebased_n: int) -> FutureItem:
+        assert onebased_n != 0, (
+            "FutureArray: index1(1) means first element, index1(-1) last, but index1(0) is undefined"
+        )
+        if onebased_n > 0:
+            return self[onebased_n - 1]
+        return self[-onebased_n]
+
+    def __repr__(self) -> str:
+        if self.kind == "io" and self.name == "output":
+            return "OUTPUT"
+        elif self.kind == "io" and self.name == "input":
+            return "INPUT"
+        elif self.kind == "list":
+            return f"LIST({self.name!r})"
+        return super().__repr__()
+
+
+OUTPUT = FutureArray("io", "output")
+""":class:`FutureArray` that represents the output a submission produced during the current test"""
+
+INPUT = FutureArray("io", "input")
+""":class:`FutureArray` that represents the output a submission got during the current test"""
+
+
+def LIST(name: str) -> FutureArray:
+    return FutureArray("list", name)
+
+
+def VAR(name: str) -> FutureVariable:
+    return FutureVariable(name)
