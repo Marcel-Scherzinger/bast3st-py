@@ -5,7 +5,7 @@ import abc
 from string import templatelib
 import itertools
 import typing
-from .helpers import RelationT, ArrayScopeT, SelectorOpcodeT
+from .helpers import ContainOpcodeT, RelationT, ArrayScopeT, SelectorOpcodeT
 
 
 NO_BOOL_ON_CRITERION = "A criterion shouldn't be used in Python boolean expressions, you can't use Pythons and, or and not keywords on it, but & (all_of(...)), | (any_of(...)) and ~ (.negated) work!"
@@ -129,6 +129,34 @@ class Value(Entity, abc.ABC):
     def __abs__(self, /) -> Transformed:
         return Transformed("abs", self)
 
+    def contains_text(
+        self, val: IntoTextValue, *, sample_expected: str | None = None
+    ) -> Criterion:
+        return Contained(
+            sub=val, sup=self, mode="contain_text", sample_expected=sample_expected
+        )
+
+    def contains_only_this_number(
+        self, val: IntoValue, *, sample_expected: str | None = None
+    ) -> Criterion:
+        return Contained(
+            sub=val, sup=self, mode="contain_onlynum", sample_expected=sample_expected
+        )
+
+    def contains_this_number(
+        self, val: IntoValue, *, sample_expected: str | None = None
+    ) -> Criterion:
+        return Contained(
+            sub=val, sup=self, mode="contain_num", sample_expected=sample_expected
+        )
+
+    def text_is_contained_in(
+        self, val: IntoTextValue, *, sample_expected: str | None = None
+    ) -> Criterion:
+        return Contained(
+            sub=self, sup=val, mode="contain_text", sample_expected=sample_expected
+        )
+
     def pipe(
         self, operation: Transformation, *operations: Transformation
     ) -> Transformed:
@@ -241,7 +269,7 @@ def _concat_from_template(temp: templatelib.Template) -> Transformed:
 
 
 class Criterion(Entity):
-    def __init__(self, sample_expected: IntoTextValue | None = None) -> None:
+    def __init__(self, *, sample_expected: IntoTextValue | None) -> None:
         super().__init__()
         self.sample_expected = Value.of(sample_expected)
 
@@ -257,12 +285,26 @@ class Criterion(Entity):
         """Criterion with the success condition negated"""
         return negated(self)
 
+    def with_sample_expected(self, val: IntoTextValue) -> Criterion:
+        self.sample_expected = Value.of(val)
+        return self
+
     def _ar(self, *args, **kwargs) -> str:
-        return super()._ar(*args, **kwargs, sample_expected=self.sample_expected)
+        extend = {}
+        if self.sample_expected is not None:
+            extend.update(sample_expected=self.sample_expected)
+        return super()._ar(*args, **kwargs, **extend)
 
 
 class compare(Criterion):
-    def __init__(self, left: IntoValue, relation: RelationT, right: IntoValue) -> None:
+    def __init__(
+        self,
+        left: IntoValue,
+        relation: RelationT,
+        right: IntoValue,
+        *,
+        sample_expected: str | None = None,
+    ) -> None:
         """
         Compare two future values with a given relation
 
@@ -270,7 +312,7 @@ class compare(Criterion):
         :param RelationT relation: the comparison relation to use
         :param Value right: second future value
         """
-        super().__init__()
+        super().__init__(sample_expected=sample_expected)
         self.left = Value.of(left)
         self.relation = relation
         self.right = Value.of(right)
@@ -301,6 +343,30 @@ class compare(Criterion):
     @classmethod
     def ge(cls, left: IntoValue, right: IntoValue) -> compare:
         return cls(left, ">=", right)
+
+
+class Contained(Criterion):
+    def __init__(
+        self,
+        *,
+        sub: IntoValue,
+        sup: IntoTextValue,
+        mode: ContainOpcodeT = "contain_text",
+        sample_expected: IntoTextValue | None = None,
+    ) -> None:
+        super().__init__(sample_expected=sample_expected)
+        self.sub = sub
+        self.sup = sup
+        self.mode = mode
+
+    def __repr__(self) -> str:
+        if self.mode == "contain_text":
+            return f"{self.sup!r}.contains_text({self._ar(self.sub)})"
+        if self.mode == "contain_num":
+            return f"{self.sup!r}.contains_this_number({self._ar(self.sub)})"
+        if self.mode == "contain_onlynum":
+            return f"{self.sup!r}.contains_only_this_number({self._ar(self.sub)})"
+        raise TypeError(f"Unexpected contain mode: {self.mode}")
 
 
 ################################
