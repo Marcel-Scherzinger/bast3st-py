@@ -10,7 +10,8 @@ Bast3St documentation
    :alt: Documentation on GitHub Pages
 .. image:: https://img.shields.io/badge/Python%20version-%E2%89%A53.14-blue?logo=python&logoColor=white
    :alt: Python Version >= 3.14
-
+.. image:: https://img.shields.io/badge/Nix-flake-purple?logo=nixos&logoColor=white
+   :alt: Nix flake
 
 .. toctree::
    :maxdepth: 3
