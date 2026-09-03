@@ -11,7 +11,7 @@ from .helpers import ContainOpcodeT, RelationT, ArrayScopeT, SelectorOpcodeT
 NO_BOOL_ON_CRITERION = "A criterion shouldn't be used in Python boolean expressions, you can't use Pythons and, or and not keywords on it, but & (all_of(...)), | (any_of(...)) and ~ (.negated) work!"
 
 
-class Entity(abc.ABC):
+class DecisionEntity(abc.ABC):
     def _ar(self, *args, **kwargs) -> str:
         """
         This should format custom arguments together with the ones of the base class
@@ -41,7 +41,7 @@ class Entity(abc.ABC):
 ################################
 
 
-class Value(Entity, abc.ABC):
+class Value(DecisionEntity, abc.ABC):
     @typing.overload
     @classmethod
     def of(cls, val: IntoValue) -> Value: ...
@@ -189,7 +189,9 @@ class Value(Entity, abc.ABC):
 
 
 IntoTextValue: TypeAlias = str | templatelib.Template | Value
+"""Any type that can be converted into a :class:`Value` and is likely a text"""
 IntoValue: TypeAlias = IntoTextValue | float | int | bool
+"""Any type that can be converted into a :class:`Value`"""
 
 
 class LitValue(Value):
@@ -206,7 +208,7 @@ class LitValue(Value):
 ################################
 
 
-class Transformation(Entity, abc.ABC):
+class Transformation(DecisionEntity, abc.ABC):
     def __init__(self) -> None:
         pass
 
@@ -268,7 +270,7 @@ def _concat_from_template(temp: templatelib.Template) -> Transformed:
 ################################
 
 
-class Criterion(Entity):
+class Criterion(DecisionEntity):
     def __init__(self, *, sample_expected: IntoTextValue | None) -> None:
         super().__init__()
         self.sample_expected = Value.of(sample_expected)
