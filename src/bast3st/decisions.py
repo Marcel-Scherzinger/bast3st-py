@@ -294,9 +294,9 @@ class Criterion(DecisionEntity):
     def __bool__(self) -> NoReturn:
         raise TypeError(NO_BOOL_ON_CRITERION + f" ({self!r})")
 
-    def negate(self) -> negated:
+    def negate(self, *, sample_expected: IntoTextValue | None = None) -> negated:
         """Create criterion with the success condition negated"""
-        return negated(self)
+        return negated(self, sample_expected=sample_expected)
 
     @property
     def negated(self) -> negated:

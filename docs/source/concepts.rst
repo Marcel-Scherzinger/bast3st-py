@@ -12,6 +12,7 @@ Placeholders live in the future
 Available components
 ====================
 
+
 Selectors
 ---------
 
@@ -54,7 +55,7 @@ Criteria
   :code:`value1.contains_this_number(42)`
 - :func:`Value::contains_only_this_number <bast3st.decisions.Value.contains_only_this_number>`:
   :code:`value1.contains_only_this_number(42)`
-- :class:`compare`: typically you can use the short-cut syntax for `value1`, `value2` of type :any:`Value`
+- :class:`compare`: typically you can use the short-cut syntax :any:`Value`
 
   - :any:`compare.eq`: :code:`value1 == value2`
   - :any:`compare.neq`: :code:`value1 != value2`
@@ -62,4 +63,12 @@ Criteria
   - :any:`compare.gt`: :code:`value1 >  value2`
   - :any:`compare.le`: :code:`value1 <= value2`
   - :any:`compare.ge`: :code:`value1 >= value2`
-- TODO: `all_of` / `any_of` / `negated`
+
+- Junctors
+
+  - :func:`all_of(...) <bast3st.decisions.all_of>`:
+    :code:`all_of(contains_A, contains_a, sample_expected="aA")`
+  - :func:`any_of(...) <bast3st.decisions.any_of>`
+    :code:`any_of(contains_A, contains_a, sample_expected="a")`
+  - :any:`Criterion::negate <bast3st.decisions.Criterion.negate>`
+    :code:`some_number.negate(sample_expected="A")`
