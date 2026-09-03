@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from typing import TypeAlias, Literal
+from typing import NoReturn, TypeAlias, Literal
 import abc
 from string import templatelib
 import itertools
+import typing
 from .helpers import RelationT, ArrayScopeT, SelectorOpcodeT
 
 
@@ -26,6 +27,14 @@ class Entity(abc.ABC):
         """Utility that returns a string of class-name(self._ar(*args, **kwargs))"""
         return f"{self.__class__.__name__}({self._ar(*args, **kwargs)})"
 
+    def __bool__(self) -> NoReturn:
+        raise TypeError("You can't use bool(...) on decision entities")
+
+    def __format__(self, _: str, /) -> NoReturn:
+        raise TypeError(
+            "Decision entities should never be used in format string, use Python 3.14 t-strings instead"
+        )
+
 
 ################################
 # Future values
@@ -33,8 +42,16 @@ class Entity(abc.ABC):
 
 
 class Value(Entity, abc.ABC):
+    @typing.overload
     @classmethod
-    def of(cls, val: IntoValue | None) -> Value | None:
+    def of(cls, val: IntoValue) -> Value: ...
+
+    @typing.overload
+    @classmethod
+    def of(cls, val: IntoValue | None) -> Value | None: ...
+
+    @classmethod
+    def of(cls, val):
         """Exactly like :any:`ofStrict` but returns `None` if input is `None`"""
         if val is not None:
             return cls.ofStrict(val)
@@ -74,6 +91,43 @@ class Value(Entity, abc.ABC):
 
     def __ge__(self, value: IntoValue, /) -> Criterion:
         return compare.ge(self, value)
+
+    def __add__(self, other: IntoValue, /) -> Transformed:
+        return Transformed("add", self, Value.ofStrict(other))
+
+    def __sub__(self, other: IntoValue, /) -> Transformed:
+        return Transformed("sub", self, Value.ofStrict(other))
+
+    def __mul__(self, other: IntoValue, /) -> Transformed:
+        return Transformed("mul", self, Value.ofStrict(other))
+
+    def __truediv__(self, other: IntoValue, /) -> Transformed:
+        return Transformed("truediv", self, Value.ofStrict(other))
+
+    def __floordiv__(self, other: IntoValue, /) -> Transformed:
+        # // operator (integer division)
+        return Transformed("floordiv", self, Value.ofStrict(other))
+
+    def __mod__(self, other: IntoValue, /) -> Transformed:
+        return Transformed("mod", self, Value.ofStrict(other))
+
+    def __pow__(self, other: IntoValue, /) -> Transformed:
+        return Transformed("pow", self, Value.ofStrict(other))
+
+    def __neg__(self, /) -> Transformed:
+        return Transformed("neg", self)
+
+    def __floor__(self, /) -> Transformed:
+        return Transformed("floor", self)
+
+    def __ceil__(self, /) -> Transformed:
+        return Transformed("ceil", self)
+
+    def __round__(self, /) -> Transformed:
+        return Transformed("round", self)
+
+    def __abs__(self, /) -> Transformed:
+        return Transformed("abs", self)
 
     def pipe(
         self, operation: Transformation, *operations: Transformation
@@ -124,7 +178,7 @@ class LitValue(Value):
 ################################
 
 
-class Transformation(abc.ABC):
+class Transformation(Entity, abc.ABC):
     def __init__(self) -> None:
         pass
 
@@ -191,8 +245,8 @@ class Criterion(Entity):
         super().__init__()
         self.sample_expected = Value.of(sample_expected)
 
-    def __bool__(self):
-        raise Exception(NO_BOOL_ON_CRITERION + f" ({self!r})")
+    def __bool__(self) -> NoReturn:
+        raise TypeError(NO_BOOL_ON_CRITERION + f" ({self!r})")
 
     def negate(self) -> negated:
         """Create criterion with the success condition negated"""

@@ -1,4 +1,4 @@
-from bast3st.base import (
+from bast3st.decisions import (
     all_of,
     any_of,
     negated,
@@ -7,8 +7,8 @@ from bast3st.base import (
     Value,
     compare,
     to_lower,
+    INPUT,
 )
-from bast3st.selectors import INPUT
 
 c1 = Criterion(sample_expected="abc")
 c2 = Criterion()
@@ -23,3 +23,5 @@ print(INPUT.length == "b")
 
 l = to_lower(INPUT[0])
 print(l)
+
+print(Value.of(2) + INPUT[0])
