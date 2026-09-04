@@ -8,12 +8,16 @@ Bast3St documentation
 
 .. image:: https://github.com/marcel-scherzinger/bast3st-py/actions/workflows/documentation.yml/badge.svg
    :alt: Documentation on GitHub Pages
+   :target: https://marcel-scherzinger.github.io/bast3st-py
 .. image:: https://img.shields.io/badge/Python%20version-%E2%89%A53.14-blue?logo=python&logoColor=white
    :alt: Python Version >= 3.14
+   :target: https://python.org
 .. image:: https://img.shields.io/badge/Nix-flake-purple?logo=nixos&logoColor=white
    :alt: Nix flake
+   :target: https://nixos.org
 .. image:: https://img.shields.io/badge/direnv-enabled-yellow
    :alt: direnv enabled
+   :target: https://direnv.net
 
 .. toctree::
    :maxdepth: 3
