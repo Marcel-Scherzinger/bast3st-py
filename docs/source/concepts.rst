@@ -103,8 +103,8 @@ Criteria
 - Junctors
 
   - :func:`all_of(...) <bast3st.decisions.all_of>`:
-    :code:`all_of(contains_A, contains_a, sample_expected="aA")`
+    :code:`all_of(last_output_contains_A, last_output_contains_a, failure_explaination="Your last output should contain at least one lowercase and one uppercase a")`
   - :func:`any_of(...) <bast3st.decisions.any_of>`
-    :code:`any_of(contains_A, contains_a, sample_expected="a")`
+    :code:`any_of(last_output_contains_A, last_output_contains_a, failure_explaination="Your last output should contain at least one a (lower or upper case)")`
   - :any:`Criterion::negate <bast3st.decisions.Criterion.negate>`
-    :code:`some_number.negate(sample_expected="A")`
+    :code:`last_output_contains_number.negate(failure_explaination="Your last output shouldn't contain any number")`

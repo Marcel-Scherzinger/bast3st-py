@@ -136,31 +136,31 @@ class Value(DecisionEntity, abc.ABC):
         return Transformed("abs", self)
 
     def contains_text(
-        self, val: IntoTextValue, *, sample_expected: IntoTextValue | None = None
+        self, val: IntoTextValue, *, failure_explaination: IntoTextValue | None = None
     ) -> Criterion:
         return Contained(
-            sub=val, sup=self, mode="contain_text", sample_expected=sample_expected
+            sub=val, sup=self, mode="contain_text", failure_explaination=failure_explaination
         )
 
     def contains_only_this_number(
-        self, val: IntoValue, *, sample_expected: IntoTextValue | None = None
+        self, val: IntoValue, *, failure_explaination: IntoTextValue | None = None
     ) -> Criterion:
         return Contained(
-            sub=val, sup=self, mode="contain_onlynum", sample_expected=sample_expected
+            sub=val, sup=self, mode="contain_onlynum", failure_explaination=failure_explaination
         )
 
     def contains_this_number(
-        self, val: IntoValue, *, sample_expected: IntoTextValue | None = None
+        self, val: IntoValue, *, failure_explaination: IntoTextValue | None = None
     ) -> Criterion:
         return Contained(
-            sub=val, sup=self, mode="contain_num", sample_expected=sample_expected
+            sub=val, sup=self, mode="contain_num", failure_explaination=failure_explaination
         )
 
     def text_is_contained_in(
-        self, val: IntoTextValue, *, sample_expected: IntoTextValue | None = None
+        self, val: IntoTextValue, *, failure_explaination: IntoTextValue | None = None
     ) -> Criterion:
         return Contained(
-            sub=self, sup=val, mode="contain_text", sample_expected=sample_expected
+            sub=self, sup=val, mode="contain_text", failure_explaination=failure_explaination
         )
 
     def pipe(
@@ -287,30 +287,30 @@ def _concat_from_template(temp: templatelib.Template) -> Transformed:
 
 
 class Criterion(DecisionEntity):
-    def __init__(self, *, sample_expected: IntoTextValue | None) -> None:
+    def __init__(self, *, failure_explaination: IntoTextValue | None) -> None:
         super().__init__()
-        self.sample_expected = Value.of(sample_expected)
+        self.failure_explaination = Value.of(failure_explaination)
 
     def __bool__(self) -> NoReturn:
         raise TypeError(NO_BOOL_ON_CRITERION + f" ({self!r})")
 
-    def negate(self, *, sample_expected: IntoTextValue | None = None) -> negated:
+    def negate(self, *, failure_explaination: IntoTextValue | None = None) -> negated:
         """Create criterion with the success condition negated"""
-        return negated(self, sample_expected=sample_expected)
+        return negated(self, failure_explaination=failure_explaination)
 
     @property
     def negated(self) -> negated:
         """Criterion with the success condition negated"""
         return negated(self)
 
-    def with_sample_expected(self, val: IntoTextValue) -> Criterion:
-        self.sample_expected = Value.of(val)
+    def with_failure_explaination(self, val: IntoTextValue) -> Criterion:
+        self.failure_explaination = Value.of(val)
         return self
 
     def _ar(self, *args, **kwargs) -> str:
         extend = {}
-        if self.sample_expected is not None:
-            extend.update(sample_expected=self.sample_expected)
+        if self.failure_explaination is not None:
+            extend.update(failure_explaination=self.failure_explaination)
         return super()._ar(*args, **kwargs, **extend)
 
 
@@ -321,7 +321,7 @@ class compare(Criterion):
         relation: RelationT,
         right: IntoValue,
         *,
-        sample_expected: IntoTextValue | None = None,
+        failure_explaination: IntoTextValue | None = None,
     ) -> None:
         """
         Compare two future values with a given relation
@@ -330,7 +330,7 @@ class compare(Criterion):
         :param RelationT relation: the comparison relation to use
         :param Value right: second future value
         """
-        super().__init__(sample_expected=sample_expected)
+        super().__init__(failure_explaination=failure_explaination)
         self.left = Value.of(left)
         self.relation = relation
         self.right = Value.of(right)
@@ -370,9 +370,9 @@ class Contained(Criterion):
         sub: IntoValue,
         sup: IntoTextValue,
         mode: ContainOpcodeT = "contain_text",
-        sample_expected: IntoTextValue | None = None,
+        failure_explaination: IntoTextValue | None = None,
     ) -> None:
-        super().__init__(sample_expected=sample_expected)
+        super().__init__(failure_explaination=failure_explaination)
         self.sub = sub
         self.sup = sup
         self.mode = mode
@@ -394,9 +394,9 @@ class Contained(Criterion):
 
 class negated(Criterion):
     def __init__(
-        self, inner: Criterion, sample_expected: IntoTextValue | None = None
+        self, inner: Criterion, failure_explaination: IntoTextValue | None = None
     ) -> None:
-        super().__init__(sample_expected=sample_expected)
+        super().__init__(failure_explaination=failure_explaination)
         self._inner = inner
 
     def __repr__(self) -> str:
@@ -407,9 +407,9 @@ class negated(Criterion):
 
 class all_of(Criterion):
     def __init__(
-        self, *clauses: Criterion, sample_expected: IntoTextValue | None = None
+        self, *clauses: Criterion, failure_explaination: IntoTextValue | None = None
     ) -> None:
-        super().__init__(sample_expected=sample_expected)
+        super().__init__(failure_explaination=failure_explaination)
         self._clauses = []
         for c in clauses:
             if isinstance(c, self.__class__):
@@ -425,9 +425,9 @@ class all_of(Criterion):
 
 class any_of(Criterion):
     def __init__(
-        self, *clauses: Criterion, sample_expected: IntoTextValue | None = None
+        self, *clauses: Criterion, failure_explaination: IntoTextValue | None = None
     ) -> None:
-        super().__init__(sample_expected=sample_expected)
+        super().__init__(failure_explaination=failure_explaination)
         self._clauses = []
         for c in clauses:
             if isinstance(c, self.__class__):
