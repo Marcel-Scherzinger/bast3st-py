@@ -64,6 +64,9 @@ Selectors
     - :func:`INPUT.length <bast3st.decisions.INPUT>`
     - :func:`OUTPUT.length <bast3st.decisions.OUTPUT>`
 - :func:`VAR("myvar")<bast3st.decisions.VAR>`: value of a specific variable
+- :func:`Value::first_capture <bast3st.decisions.Value.first_capture>`:
+  :code:`value2 = value1.first_capture("^.(?P<sndLetter>).$")["sndLetter"]`
+- :class:`NetworkRequest <bast3st.decisions.NetworkRequest>`
 
 
 Transformations
@@ -80,6 +83,7 @@ Transformations
 - :meth:`Value::trim<bast3st.decisions.Value.trim>`
 - :meth:`Value::trim_start<bast3st.decisions.Value.trim_start>`
 - :meth:`Value::trim_end<bast3st.decisions.Value.trim_end>`
+- :func:`if_then_else <bast3st.decisions.if_then_else>`: select one of two options depending on the acceptance state of a criterion
 
 Criteria
 --------
@@ -90,6 +94,10 @@ Criteria
   :code:`value1.contains_this_number(42)`
 - :func:`Value::contains_only_this_number <bast3st.decisions.Value.contains_only_this_number>`:
   :code:`value1.contains_only_this_number(42)`
+- :func:`Value::contains_with_gaps <bast3st.decisions.Value.contains_with_gaps>`:
+  :code:`value1.contains_with_gaps("42", "is greater", "24")`
+- :func:`Value::matches <bast3st.decisions.Value.matches>`:
+  :code:`value1.matches("(?i)a+(?-i)b+")`
 - :class:`compare`: typically you can use the short-cut syntax :any:`Value`
 
   - :any:`compare.eq`: :code:`value1 == value2`
@@ -98,6 +106,7 @@ Criteria
   - :any:`compare.gt`: :code:`value1 >  value2`
   - :any:`compare.le`: :code:`value1 <= value2`
   - :any:`compare.ge`: :code:`value1 >= value2`
+- :func:`if_then_else <bast3st.decisions.if_then_else>`: select one of two options depending on the acceptance state of a criterion
 
 - Junctors
 
@@ -134,7 +143,12 @@ Normally, selectors, transformations and criteria work on the *happy path*::
 When errors – that aren't severe enough to cancel the whole execution – occur,
 the values move to the error path and further (normal) transformations
 and criteria will be skipped to pass the error up.
-By using a special transformation to `catch` the error, the execution can come
+By using a special method to `catch` the error, the execution can come
 back to the happy path when the error is handled.
 
+- catching for (transformed) values: :func:`Value::catch <bast3st.decisions.Value.catch>`
+- catching for criteria: :func:`Criterion::catch <bast3st.decisions.Criterion.catch>`
+
 Uncatched errors have different effects depending on the context in which they occur.
+
+See :any:`err` for a list of available error kinds that can be catched.

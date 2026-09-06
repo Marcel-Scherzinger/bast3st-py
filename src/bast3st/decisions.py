@@ -6,12 +6,12 @@ from string import templatelib
 import itertools
 import typing
 
-from bast3st.actions import ValueCatchAction
+from bast3st.actions import CriterionCatchAction, ValueCatchAction
 from bast3st.catchable import err
 
 type StdArrayScopeT = Literal["io", "list"]
 type ArrayScopeT = Literal["arrayview"] | StdArrayScopeT
-type MapScopeT = Literal["network"]
+type MapScopeT = Literal["network", "first_capture"]
 type RelationT = Literal["==", "!=", "<=", ">=", "<", ">"]
 """A comparison operator string to specify the desired relation"""
 
@@ -160,6 +160,56 @@ class Value(DecisionEntity, abc.ABC):
             failure_explaination=failure_explaination,
         )
 
+    def contains_with_gaps(
+        self, *val: IntoValue, failure_explaination: IntoTextValue | None = None
+    ) -> Criterion:
+        """If this contains a specific sequence of fragments, with arbitraty gaps inbetween"""
+        return Crit(
+            "contain_wgap",
+            *val,
+            sup=self,
+            failure_explaination=failure_explaination,
+        )
+
+    def matches(
+        self, pattern: IntoTextValue, failure_explaination: IntoTextValue | None = None
+    ) -> Criterion:
+        """
+        If this matches a *Rust regex* regular expression.
+
+        .. warning::
+
+            As :ref:`placeholders-in-future` the pattern will be evaluated **not** by the
+            Python :mod:`re` regular expression library, but by the one that is used
+            by the server implementation.
+            The required syntax can be found in the
+            `regex crate <https://docs.rs/regex/latest/regex/#syntax>`_
+
+        """
+        return Crit(
+            "regex",
+            pattern=pattern,
+            sup=self,
+            failure_explaination=failure_explaination,
+        )
+
+    def first_capture(self, pattern: IntoTextValue) -> FutureMapping:
+        """
+        Tries to match a *Rust regex* regular expression and returns
+        a mapping of the first match that allows accessing the
+        `captured parts <https://docs.rs/regex/latest/regex/#grouping-and-flags>`_.
+
+        .. warning::
+
+            As :ref:`placeholders-in-future` the pattern will be evaluated **not** by the
+            Python :mod:`re` regular expression library, but by the one that is used
+            by the server implementation.
+            The required syntax can be found in the
+            `regex crate <https://docs.rs/regex/latest/regex/#syntax>`_
+
+        """
+        return FirstPatternCapture(pattern, self)
+
     def contains_this_number(
         self, val: IntoValue, *, failure_explaination: IntoTextValue | None = None
     ) -> Criterion:
@@ -213,24 +263,24 @@ class Value(DecisionEntity, abc.ABC):
     @typing.overload
     def catch(
         self,
-        *,
         error: err,
+        *,
         default_value: IntoValue,
         only_if: Criterion | None = None,
     ): ...
     @typing.overload
     def catch(
         self,
-        *,
         error: err,
+        *,
         action: ValueCatchAction,
         only_if: Criterion | None = None,
     ): ...
     @typing.overload
     def catch(
         self,
-        *,
         error: err,
+        *,
         only_if: Criterion | None = None,
         default_value: IntoValue | None,
         action: ValueCatchAction | None,
@@ -238,8 +288,8 @@ class Value(DecisionEntity, abc.ABC):
 
     def catch(
         self,
-        *,
         error: err,
+        *,
         only_if: Criterion | None = None,
         default_value: IntoValue | None = None,
         action: ValueCatchAction | None = None,
@@ -353,12 +403,12 @@ class Criterion(DecisionEntity):
     def __bool__(self) -> NoReturn:
         raise TypeError(NO_BOOL_ON_CRITERION + f" ({self!r})")
 
-    def negate(self, *, failure_explaination: IntoTextValue | None = None) -> negated:
+    def negate(self, *, failure_explaination: IntoTextValue | None = None) -> Criterion:
         """Create criterion with the success condition negated"""
         return negated(self, failure_explaination=failure_explaination)
 
     @property
-    def negated(self) -> negated:
+    def negated(self) -> Criterion:
         """Criterion with the success condition negated"""
         return negated(self)
 
@@ -372,8 +422,94 @@ class Criterion(DecisionEntity):
             extend.update(failure_explaination=self.failure_explaination)
         return super()._ar(*args, **kwargs, **extend)
 
+    @typing.overload
+    def catch(
+        self,
+        error: err,
+        *,
+        fallback: Criterion,
+        only_if: Criterion | None = None,
+    ): ...
+    @typing.overload
+    def catch(
+        self,
+        error: err,
+        *,
+        action: CriterionCatchAction,
+        only_if: Criterion | None = None,
+    ): ...
+    @typing.overload
+    def catch(
+        self,
+        error: err,
+        *,
+        only_if: Criterion | None = None,
+        fallback: Criterion | None,
+        action: CriterionCatchAction | None,
+    ): ...
 
-class compare(Criterion):
+    def catch(
+        self,
+        error: err,
+        *,
+        only_if: Criterion | None = None,
+        fallback: Criterion | None = None,
+        action: CriterionCatchAction | None = None,
+    ) -> Criterion:
+        return Crit(
+            "catch",
+            error,
+            only_if=only_if,
+            fallback=fallback,
+            action=action,
+        )
+
+
+class Crit(Criterion):
+    def __init__(
+        self,
+        opcode: str,
+        *args,
+        failure_explaination: IntoTextValue | None = None,
+        **kwargs,
+    ) -> None:
+        super().__init__(failure_explaination=Value.of(failure_explaination))
+        self._consname = self.__class__.__name__
+        self.opcode = opcode
+        self._args = args
+        self._kwargs = kwargs
+
+    def _ar(self, *args, **kwargs) -> str:
+        return super()._ar(
+            *self._args,
+            *args,
+            **self._kwargs,
+            failure_explaination=self.failure_explaination,
+            **kwargs,
+        )
+
+    def __repr__(self) -> str:
+        return f"{self._consname}({self._ar()})"
+
+
+@typing.overload
+def if_then_else(if_: Criterion, then_: Criterion, else_: Criterion) -> Criterion: ...
+@typing.overload
+def if_then_else(if_: Criterion, then_: IntoValue, else_: IntoValue) -> Value: ...
+
+
+def if_then_else(if_, then_, else_):  # type: ignore
+    if isinstance(then_, Criterion):
+        if isinstance(else_, Criterion):
+            return Crit("ifte", if_, then_, else_)
+    else:
+        if not isinstance(else_, Criterion):
+            return Transformed("ifte", if_, then_, else_)
+
+    raise TypeError("Can't use if_then_else with mixed signature for then_/else_")
+
+
+class compare(Crit):
     def __init__(
         self,
         left: IntoValue,
@@ -389,10 +525,24 @@ class compare(Criterion):
         :param RelationT relation: the comparison relation to use
         :param Value right: second future value
         """
-        super().__init__(failure_explaination=failure_explaination)
-        self.left = Value.of(left)
-        self.relation = relation
-        self.right = Value.of(right)
+        super().__init__(
+            relation,
+            Value.of(left),
+            Value.of(right),
+            failure_explaination=failure_explaination,
+        )
+
+    @property
+    def relation(self):
+        return self.opcode
+
+    @property
+    def left(self) -> Value:
+        return self._args[0]
+
+    @property
+    def right(self) -> Value:
+        return self._args[1]
 
     def __repr__(self) -> str:
         return f"{self.left!r} {self.relation} {self.right!r}"
@@ -422,7 +572,7 @@ class compare(Criterion):
         return cls(left, ">=", right)
 
 
-class Contained(Criterion):
+class Contained(Crit):
     def __init__(
         self,
         *,
@@ -431,18 +581,37 @@ class Contained(Criterion):
         mode: ContainOpcodeT = "contain_text",
         failure_explaination: IntoTextValue | None = None,
     ) -> None:
-        super().__init__(failure_explaination=failure_explaination)
-        self.sub = sub
-        self.sup = sup
-        self.mode = mode
+        super().__init__(
+            mode,
+            Value.of(sub),
+            Value.of(sup),
+            failure_explaination=failure_explaination,
+        )
+
+    @property
+    def mode(self) -> ContainOpcodeT:
+        return self.opcode  # type: ignore
+
+    @property
+    def sub(self) -> Value:
+        return self._args[0]
+
+    @property
+    def sup(self) -> Value:
+        return self._args[1]
 
     def __repr__(self) -> str:
+        kw = (
+            f", failure_explaination={self.failure_explaination!r}"
+            if self.failure_explaination is not None
+            else ""
+        )
         if self.mode == "contain_text":
-            return f"{self.sup!r}.contains_text({self._ar(self.sub)})"
+            return f"{self.sup!r}.contains_text({self._ar(self.sub)}{kw})"
         if self.mode == "contain_num":
-            return f"{self.sup!r}.contains_this_number({self._ar(self.sub)})"
+            return f"{self.sup!r}.contains_this_number({self._ar(self.sub)}{kw})"
         if self.mode == "contain_onlynum":
-            return f"{self.sup!r}.contains_only_this_number({self._ar(self.sub)})"
+            return f"{self.sup!r}.contains_only_this_number({self._ar(self.sub)}{kw})"
         raise TypeError(f"Unexpected contain mode: {self.mode}")
 
 
@@ -451,53 +620,51 @@ class Contained(Criterion):
 ################################
 
 
-class negated(Criterion):
-    def __init__(
-        self, inner: Criterion, failure_explaination: IntoTextValue | None = None
-    ) -> None:
-        super().__init__(failure_explaination=failure_explaination)
-        self._inner = inner
-
-    def __repr__(self) -> str:
-        return self._repr(self._inner)
-
-    pass
+def negated(
+    criterion: Criterion, *, failure_explaination: IntoTextValue | None = None
+) -> Criterion:
+    """Negate a criterion so that it accepts exactly when the original one didn't accept"""
+    c = Crit("negated", criterion, failure_explaination=failure_explaination)
+    c._consname = "negated"
+    return c
 
 
-class all_of(Criterion):
+class all_of(Crit):
     def __init__(
         self, *clauses: Criterion, failure_explaination: IntoTextValue | None = None
     ) -> None:
-        super().__init__(failure_explaination=failure_explaination)
-        self._clauses = []
+        _clauses = []
         for c in clauses:
             if isinstance(c, self.__class__):
-                self._clauses.extend(c._clauses)
+                _clauses.extend(c._args)
             else:
-                self._clauses.append(c)
+                _clauses.append(c)
 
-    def __repr__(self) -> str:
-        return self._repr(*self._clauses)
+        super().__init__(
+            self.__class__.__name__,
+            *_clauses,
+            failure_explaination=failure_explaination,
+        )
 
     pass
 
 
-class any_of(Criterion):
+class any_of(Crit):
     def __init__(
         self, *clauses: Criterion, failure_explaination: IntoTextValue | None = None
     ) -> None:
-        super().__init__(failure_explaination=failure_explaination)
-        self._clauses = []
+        _clauses = []
         for c in clauses:
             if isinstance(c, self.__class__):
-                self._clauses.extend(c._clauses)
+                _clauses.extend(c._args)
             else:
-                self._clauses.append(c)
+                _clauses.append(c)
 
-    def __repr__(self) -> str:
-        return self._repr(*self._clauses)
-
-    pass
+        super().__init__(
+            self.__class__.__name__,
+            *_clauses,
+            failure_explaination=failure_explaination,
+        )
 
 
 ################################
@@ -802,6 +969,14 @@ class FutureMapping:
     def values(self) -> FutureArray:
         """Array of all values (indexed by numbers), in the order of the sorted keys"""
         return FutureViewArray("arrayview", "values", self)
+
+
+class FirstPatternCapture(FutureMapping):
+    def __init__(self, pattern: IntoTextValue, value: Value) -> None:
+        super().__init__("first_capture", pattern, value)
+
+    def __repr__(self) -> str:
+        return f"{self._args[1]!r}.first_capture({self._args[0]}!r)"
 
 
 class NetworkRequest(FutureMapping):

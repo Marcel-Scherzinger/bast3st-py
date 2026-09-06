@@ -4,3 +4,7 @@ class Action:
 
 class ValueCatchAction(Action):
     pass
+
+
+class CriterionCatchAction(Action):
+    pass
