@@ -57,12 +57,14 @@ Selectors
     - :func:`LIST("mylist")[number]<bast3st.decisions.LIST>`: select one of the items of the list `mylist` using the state after executing the program
     - :func:`INPUT[number]<bast3st.decisions.INPUT>`: select one of the inputs the submission received during the current test
     - :func:`OUTPUT[number]<bast3st.decisions.OUTPUT>`: select one of the outputs the submission received during the current test
+    - :func:`RANDOMS[number] <bast3st.decisions.RANDOMS>`: select one of the random numbers the submission requested and received during the current test
 - :class:`Array length<bast3st.decisions.FutureArray>`:
   number of elements in the respective :class:`FutureArray <bast3st.decisions.FutureArray>`
 
     - :func:`LIST("mylist").length <bast3st.decisions.LIST>`
     - :func:`INPUT.length <bast3st.decisions.INPUT>`
     - :func:`OUTPUT.length <bast3st.decisions.OUTPUT>`
+    - :func:`RANDOMS.length <bast3st.decisions.RANDOMS>`
 - :func:`VAR("myvar")<bast3st.decisions.VAR>`: value of a specific variable
 - :func:`Value::first_capture <bast3st.decisions.Value.first_capture>`:
   :code:`value2 = value1.first_capture("^.(?P<sndLetter>).$")["sndLetter"]`

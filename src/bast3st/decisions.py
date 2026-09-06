@@ -9,7 +9,7 @@ import typing
 from bast3st.actions import CriterionCatchAction, ValueCatchAction
 from bast3st.catchable import err
 
-type StdArrayScopeT = Literal["io", "list"]
+type StdArrayScopeT = Literal["ior", "list"]
 type ArrayScopeT = Literal["arrayview"] | StdArrayScopeT
 type MapScopeT = Literal["network", "first_capture"]
 type RelationT = Literal["==", "!=", "<=", ">=", "<", ">"]
@@ -801,7 +801,7 @@ class FutureArray:
 
     @typing.overload
     def __init__(
-        self, kind: Literal["io"], name: Literal["input", "output"], /
+        self, kind: Literal["ior"], name: Literal["input", "output"], /
     ) -> None:
         pass
 
@@ -863,7 +863,7 @@ class FutureArray:
 class FutureStdArray(FutureArray):
     @typing.overload
     def __init__(
-        self, kind: Literal["io"], name: Literal["input", "output"], /
+        self, kind: Literal["ior"], name: Literal["input", "output", "randoms"], /
     ) -> None:
         pass
 
@@ -915,11 +915,14 @@ class FutureViewArray(FutureArray):
     pass
 
 
-OUTPUT: FutureArray = FutureStdArray("io", "output")
+OUTPUT: FutureArray = FutureStdArray("ior", "output")
 """:class:`FutureArray` that represents the output a submission produced during the current test"""
 
-INPUT: FutureArray = FutureStdArray("io", "input")
+INPUT: FutureArray = FutureStdArray("ior", "input")
 """:class:`FutureArray` that represents the output a submission got during the current test"""
+
+RANDOMS: FutureArray = FutureStdArray("ior", "randoms")
+""":class:`FutureArray` that represents the random numbers a submission requested and got during the current test"""
 
 
 def LIST(name: str) -> FutureArray:
