@@ -6,11 +6,13 @@ from string import templatelib
 import itertools
 import typing
 
-type ArrayScopeT = Literal["io", "list"]
+type StdArrayScopeT = Literal["io", "list"]
+type ArrayScopeT = Literal["arrayview"] | StdArrayScopeT
+type MapScopeT = Literal["network"]
 type RelationT = Literal["==", "!=", "<=", ">=", "<", ">"]
 """A comparison operator string to specify the desired relation"""
 
-type SelectorOpcodeT = Literal["var", "arrayitem", "arrayprop"]
+type SelectorOpcodeT = Literal["var", "arrayitem", "arrayprop", "mapitem", "mapprop"]
 type ContainOpcodeT = Literal["contain_onlynum", "contain_num", "contain_text"]
 
 
@@ -139,28 +141,40 @@ class Value(DecisionEntity, abc.ABC):
         self, val: IntoTextValue, *, failure_explaination: IntoTextValue | None = None
     ) -> Criterion:
         return Contained(
-            sub=val, sup=self, mode="contain_text", failure_explaination=failure_explaination
+            sub=val,
+            sup=self,
+            mode="contain_text",
+            failure_explaination=failure_explaination,
         )
 
     def contains_only_this_number(
         self, val: IntoValue, *, failure_explaination: IntoTextValue | None = None
     ) -> Criterion:
         return Contained(
-            sub=val, sup=self, mode="contain_onlynum", failure_explaination=failure_explaination
+            sub=val,
+            sup=self,
+            mode="contain_onlynum",
+            failure_explaination=failure_explaination,
         )
 
     def contains_this_number(
         self, val: IntoValue, *, failure_explaination: IntoTextValue | None = None
     ) -> Criterion:
         return Contained(
-            sub=val, sup=self, mode="contain_num", failure_explaination=failure_explaination
+            sub=val,
+            sup=self,
+            mode="contain_num",
+            failure_explaination=failure_explaination,
         )
 
     def text_is_contained_in(
         self, val: IntoTextValue, *, failure_explaination: IntoTextValue | None = None
     ) -> Criterion:
         return Contained(
-            sub=self, sup=val, mode="contain_text", failure_explaination=failure_explaination
+            sub=self,
+            sup=val,
+            mode="contain_text",
+            failure_explaination=failure_explaination,
         )
 
     def pipe(
@@ -467,12 +481,16 @@ class FutureVariable(Selector):
 
 class FutureProperty(Selector):
     # As soon as there are more future properties
-    # @typing.overload
-    # def __init__(
-    #     self, *, mode: Literal["array"], group: FutureArray, name: str
-    # ) -> None: ...
+    @typing.overload
+    def __init__(
+        self, *, mode: Literal["array"], group: FutureArray, name: str
+    ) -> None: ...
+    @typing.overload
+    def __init__(
+        self, *, mode: Literal["map"], group: FutureMapping, name: str
+    ) -> None: ...
 
-    def __init__(self, *, mode: Literal["array"], group, name: str) -> None:
+    def __init__(self, *, mode, group, name: str) -> None:
         super().__init__(mode + "prop", group, name)
         self._mode = mode
 
@@ -509,6 +527,29 @@ class FutureItem(Selector):
         return f"{self.array!r}[{self.position}]"
 
 
+class FutureMapItem(Selector):
+    def __init__(
+        self,
+        mapping: FutureMapping,
+        key: IntoValue | tuple[IntoValue, ...] | list[IntoValue],
+    ) -> None:
+        if not isinstance(key, tuple) and not isinstance(key, list):
+            key = (key,)
+        super().__init__("mapitem", mapping, tuple([Value.of(k) for k in key]))
+
+    @property
+    def mapping(self) -> FutureMapping:
+        return self._args[0]
+
+    @property
+    def key(self) -> tuple[Value, ...]:
+        return self._args[1]
+
+    def __repr__(self) -> str:
+        keys = ", ".join([repr(k) for k in self.key])
+        return f"{self.mapping!r}[{keys}]"
+
+
 class FutureArray:
     """
     A :class:`FutureArray` represents a specific source of multiple
@@ -541,20 +582,39 @@ class FutureArray:
         The values you receive are special instances of :class:`Selector`
         and can be understood as placeholders.
         For more see :ref:`placeholders-in-future`.
+
+
+    (This type should not be instantiated directly)
     """
 
-    def __init__(self, kind: ArrayScopeT, name: str) -> None:
+    @typing.overload
+    def __init__(
+        self, kind: Literal["io"], name: Literal["input", "output"], /
+    ) -> None:
+        pass
+
+    @typing.overload
+    def __init__(self, kind: Literal["list"], name: str, /) -> None:
+        pass
+
+    @typing.overload
+    def __init__(
+        self,
+        kind: Literal["arrayview"],
+        perspective: Literal["keys", "values"],
+        mapping: FutureMapping,
+        /,
+    ) -> None:
+        pass
+
+    def __init__(self, kind: ArrayScopeT, *args) -> None:
         super().__init__()
         self._kind: ArrayScopeT = kind
-        self._name: str = name
+        self._args = args
 
     @property
     def kind(self) -> ArrayScopeT:
         return self._kind
-
-    @property
-    def name(self) -> str:
-        return self._name
 
     def __getitem__(self, key: int) -> FutureItem:
         return FutureItem(self, key)
@@ -587,6 +647,25 @@ class FutureArray:
             return self[onebased_n - 1]
         return self[-onebased_n]
 
+
+class FutureStdArray(FutureArray):
+    @typing.overload
+    def __init__(
+        self, kind: Literal["io"], name: Literal["input", "output"], /
+    ) -> None:
+        pass
+
+    @typing.overload
+    def __init__(self, kind: Literal["list"], name: str, /) -> None:
+        pass
+
+    def __init__(self, kind, name):
+        super().__init__(kind, name)
+
+    @property
+    def name(self) -> str:
+        return self._args[0]
+
     def __repr__(self) -> str:
         if self.kind == "io" and self.name == "output":
             return "OUTPUT"
@@ -596,17 +675,150 @@ class FutureArray:
             return f"LIST({self.name!r})"
         return super().__repr__()
 
+    pass
 
-OUTPUT = FutureArray("io", "output")
+
+class FutureViewArray(FutureArray):
+    @property
+    def perspective(self):
+        """The thing this array view makes accessible"""
+        return self._args[0]
+
+    @property
+    def inner_viewed(self):
+        return self._args[1]
+
+    def __init__(
+        self,
+        kind: Literal["arrayview"],
+        perspective: Literal["keys", "values"],
+        mapping: FutureMapping,
+        /,
+    ) -> None:
+        super().__init__(kind, perspective, mapping)
+
+    def __repr__(self) -> str:
+        return f"{self.inner_viewed!r}.{self.perspective}()"
+
+    pass
+
+
+OUTPUT: FutureArray = FutureStdArray("io", "output")
 """:class:`FutureArray` that represents the output a submission produced during the current test"""
 
-INPUT = FutureArray("io", "input")
+INPUT: FutureArray = FutureStdArray("io", "input")
 """:class:`FutureArray` that represents the output a submission got during the current test"""
 
 
 def LIST(name: str) -> FutureArray:
-    return FutureArray("list", name)
+    return FutureStdArray("list", name)
 
 
 def VAR(name: str) -> FutureVariable:
     return FutureVariable(name)
+
+
+class FutureMapping:
+    """
+    This is a key-value-mapping that lives in the future. (See :class:`FutureArray`)
+    """
+
+    def __init__(self, kind: MapScopeT, *args, **kwargs) -> None:
+        super().__init__()
+        self._kind: MapScopeT = kind
+        self._args = args
+        self._kwargs = kwargs
+
+    @property
+    def kind(self) -> MapScopeT:
+        return self._kind
+
+    def __getitem__(
+        self, key: IntoValue | list[IntoValue] | tuple[IntoValue, ...]
+    ) -> FutureMapItem:
+        """
+        Get the item with the specified key.
+
+        If the provided key is a sequence (tuple/list) of atomic key values,
+        this is interpreted as accessing multiple nesting levels deep.
+        This is important for JSON-like structures with multiple levels.
+        """
+        return FutureMapItem(self, key)
+
+    @property
+    def length(self) -> FutureProperty:
+        """The number of items in the mapping"""
+        return FutureProperty(mode="map", group=self, name="length")
+
+    def keys(self) -> FutureArray:
+        """Array of all keys (indexed by numbers), in their sorting order"""
+        return FutureViewArray("arrayview", "keys", self)
+
+    def values(self) -> FutureArray:
+        """Array of all values (indexed by numbers), in the order of the sorted keys"""
+        return FutureViewArray("arrayview", "values", self)
+
+
+class NetworkRequest(FutureMapping):
+    """
+    A network request to a specific server.
+    The server's domain has to be a static string and must be explicitly
+    whitelisted by the server administrator
+
+    .. todo:: name the error if not whitelisted
+
+    .. todo:: explicit response attribute methods for selecting.
+
+    :param str server: The server to contact
+    :param str route: The part after the first slash that specifies the route on the server
+    :param method: The `HTTP Method <https://developer.mozilla.org/en/docs/Web/HTTP/Reference/Methods>`_
+        to use for the request. Only `GET` and `POST` are supported
+    :param json: A :class:`dict` of values that should be sent as json to the specified url.
+        The json attribute is **not** available for `GET` requests.
+    :param allowed_status: The
+        `HTTP status codes <https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status>`_
+        of the response that are considered normal behaviour of the API.
+        This can be a single number or a :class:`tuple` of status codes.
+        If the server responds with a code that isn't listed here, it will be considered
+        one of the :ref:`catchable-errors`,
+        but only if a map item is used that is expected to require a successful response.
+    """
+
+    @typing.overload
+    def __init__(
+        self,
+        *,
+        server: str,
+        route: IntoTextValue,
+        method: Literal["GET"],
+        allowed_status: int | tuple[int, ...] = 200,
+    ) -> None: ...
+
+    @typing.overload
+    def __init__(
+        self,
+        *,
+        server: str,
+        route: IntoTextValue,
+        method: Literal["POST"],
+        json: dict[IntoValue, IntoValue] | None = None,
+        allowed_status: int | tuple[int, ...] = 200,
+    ) -> None: ...
+
+    def __init__(
+        self,
+        *,
+        server: str,
+        route: IntoTextValue,
+        method: Literal["GET", "POST"],
+        json: dict[IntoValue, IntoValue] | None = None,
+        allowed_status: int | tuple[int, ...] = 200,
+    ) -> None:
+        super().__init__(
+            "network",
+            server,
+            Value.of(route),
+            method=method,
+            json=json,
+            allowed_status=allowed_status,
+        )

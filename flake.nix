@@ -45,6 +45,9 @@
             pkgs.uv
             sphinxTotal
           ];
+          shellHook = ''
+            export INCLUDE_TODOS=""
+          '';
         };
         devShells.full = pkgs.mkShell {
           packages = [
@@ -55,6 +58,9 @@
             pkgs.uv
             sphinxTotal
           ];
+          shellHook = ''
+            export INCLUDE_TODOS=""
+          '';
         };
 
         formatter = pkgs.alejandra;

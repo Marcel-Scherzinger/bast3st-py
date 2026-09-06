@@ -24,6 +24,7 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
     "sphinx.ext.intersphinx",
+    "sphinx.ext.todo",
     # "sphinx_autodoc_typehints",
 ]
 
@@ -59,3 +60,5 @@ autodoc_default_options = {
 }
 
 intersphinx_mapping = {"python": ("https://docs.python.org/3.14", None)}
+
+todo_include_todos = os.environ.get("INCLUDE_TODOS") is not None
