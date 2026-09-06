@@ -5,7 +5,7 @@ Concepts
 Describing decisions
 ====================
 
-There are multiple situations where you need to the describe how a
+There are multiple situations where you need to describe how a
 submission should be evaluated and what is correct behaviour and what not.
 This can include the following:
 
@@ -44,7 +44,6 @@ Placeholders live in the future
 ===============================
 
 
-
 Available decision components
 =============================
 
@@ -55,7 +54,7 @@ Selectors
 - :class:`Array indexing<bast3st.decisions.FutureArray>`:
   access a specific element of a :class:`FutureArray <bast3st.decisions.FutureArray>`
 
-    - :func:`LIST("mylist")[number]<bast3st.decisions.LIST>`
+    - :func:`LIST("mylist")[number]<bast3st.decisions.LIST>`: select one of the items of the list `mylist` using the state after executing the program
     - :func:`INPUT[number]<bast3st.decisions.INPUT>`: select one of the inputs the submission received during the current test
     - :func:`OUTPUT[number]<bast3st.decisions.OUTPUT>`: select one of the outputs the submission received during the current test
 - :class:`Array length<bast3st.decisions.FutureArray>`:
@@ -108,3 +107,34 @@ Criteria
     :code:`any_of(last_output_contains_A, last_output_contains_a, failure_explaination="Your last output should contain at least one a (lower or upper case)")`
   - :any:`Criterion::negate <bast3st.decisions.Criterion.negate>`
     :code:`last_output_contains_number.negate(failure_explaination="Your last output shouldn't contain any number")`
+
+
+.. _catchable-errors:
+
+Catchable errors
+================
+
+There are multiple situations in which decision entities
+can encounter unexpected situations or failures.
+One of the simplest can occur when selecting the first :any:`OUTPUT`
+during a decision as there can be submissions that don't produce
+any output at all.
+As the term *Catchable errors* implies, one can still work with those
+errors to procede the evaluation by *catching* them.
+
+Normally, selectors, transformations and criteria work on the *happy path*::
+
+                                      v catch
+    (error path)       +--------------+
+                      /                \
+                     /                  \
+    (happy path) ---+--------------------+----->
+                    ^ error
+
+When errors – that aren't severe enough to cancel the whole execution – occur,
+the values move to the error path and further (normal) transformations
+and criteria will be skipped to pass the error up.
+By using a special transformation to `catch` the error, the execution can come
+back to the happy path when the error is handled.
+
+Uncatched errors have different effects depending on the context in which they occur.
