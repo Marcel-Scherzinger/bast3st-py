@@ -6,6 +6,9 @@ from string import templatelib
 import itertools
 import typing
 
+from bast3st.actions import ValueCatchAction
+from bast3st.catchable import err
+
 type StdArrayScopeT = Literal["io", "list"]
 type ArrayScopeT = Literal["arrayview"] | StdArrayScopeT
 type MapScopeT = Literal["network"]
@@ -206,6 +209,48 @@ class Value(DecisionEntity, abc.ABC):
 
     def trim(self) -> Transformed:
         return self.pipe(trim)
+
+    @typing.overload
+    def catch(
+        self,
+        *,
+        error: err,
+        default_value: IntoValue,
+        only_if: Criterion | None = None,
+    ): ...
+    @typing.overload
+    def catch(
+        self,
+        *,
+        error: err,
+        action: ValueCatchAction,
+        only_if: Criterion | None = None,
+    ): ...
+    @typing.overload
+    def catch(
+        self,
+        *,
+        error: err,
+        only_if: Criterion | None = None,
+        default_value: IntoValue | None,
+        action: ValueCatchAction | None,
+    ): ...
+
+    def catch(
+        self,
+        *,
+        error: err,
+        only_if: Criterion | None = None,
+        default_value: IntoValue | None = None,
+        action: ValueCatchAction | None = None,
+    ) -> Transformed:
+        return Transformed(
+            "catch",
+            error,
+            only_if=only_if,
+            default_value=Value.of(default_value),
+            action=action,
+        )
 
 
 type IntoTextValue = str | templatelib.Template | Value

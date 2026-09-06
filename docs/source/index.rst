@@ -20,7 +20,7 @@ Bast3St documentation
    :target: https://direnv.net
 
 .. toctree::
-   :maxdepth: 3
+   :maxdepth: 2
    :caption: Contents
 
    concepts

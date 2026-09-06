@@ -2,12 +2,9 @@
 Reference
 #########
 
-Decision evaluation
-===================
+.. toctree::
+   :maxdepth: 3
+   :caption: Contents
 
-.. automodule:: bast3st.decisions
-   :members:
-   :member-order: alphabetical
-   :undoc-members:
-   :show-inheritance:
-
+   ref_decisions
+   ref_actions
