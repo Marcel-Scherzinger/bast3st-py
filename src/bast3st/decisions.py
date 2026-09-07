@@ -10,7 +10,7 @@ from bast3st.catchable import err
 
 type StdArrayScopeT = Literal["ior", "list"]
 type ArrayScopeT = Literal["arrayview"] | StdArrayScopeT
-type MapScopeT = Literal["network", "first_capture"]
+type MapScopeT = Literal["network", "first_capture", "data", "mapitem", "view"]
 type RelationT = Literal["==", "!=", "<=", ">=", "<", ">"]
 """A comparison operator string to specify the desired relation"""
 
@@ -30,7 +30,8 @@ class DecisionEntity(abc.ABC):
         (stands for _arg_repr)
         """
         fmt_args = [repr(a) for a in args]
-        fmt_kwargs = [f"{k}={v!r}" for (k, v) in kwargs.items()]
+        fmt_kwargs = [f"{k}={v!r}" for (k, v) in kwargs.items() if v is not None]
+        fmt_kwargs.sort()
         return ", ".join(fmt_args + fmt_kwargs)
 
     def _repr(self, *args, **kwargs) -> str:
@@ -103,41 +104,41 @@ class Value(DecisionEntity, abc.ABC):
         return compare.ge(self, value)
 
     def __add__(self, other: IntoValue, /) -> Value:
-        return Transformed("add", self, Value.ofStrict(other))
+        return SerVal("add", self, Value.ofStrict(other))
 
     def __sub__(self, other: IntoValue, /) -> Value:
-        return Transformed("sub", self, Value.ofStrict(other))
+        return SerVal("sub", self, Value.ofStrict(other))
 
     def __mul__(self, other: IntoValue, /) -> Value:
-        return Transformed("mul", self, Value.ofStrict(other))
+        return SerVal("mul", self, Value.ofStrict(other))
 
     def __truediv__(self, other: IntoValue, /) -> Value:
-        return Transformed("truediv", self, Value.ofStrict(other))
+        return SerVal("truediv", self, Value.ofStrict(other))
 
     def __floordiv__(self, other: IntoValue, /) -> Value:
         # // operator (integer division)
-        return Transformed("floordiv", self, Value.ofStrict(other))
+        return SerVal("floordiv", self, Value.ofStrict(other))
 
     def __mod__(self, other: IntoValue, /) -> Value:
-        return Transformed("mod", self, Value.ofStrict(other))
+        return SerVal("mod", self, Value.ofStrict(other))
 
     def __pow__(self, other: IntoValue, /) -> Value:
-        return Transformed("pow", self, Value.ofStrict(other))
+        return SerVal("pow", self, Value.ofStrict(other))
 
     def __neg__(self, /) -> Value:
-        return Transformed("neg", self)
+        return SerVal("neg", self)
 
     def __floor__(self, /) -> Value:
-        return Transformed("floor", self)
+        return SerVal("floor", self)
 
     def __ceil__(self, /) -> Value:
-        return Transformed("ceil", self)
+        return SerVal("ceil", self)
 
     def __round__(self, /) -> Value:
-        return Transformed("round", self)
+        return SerVal("round", self)
 
     def __abs__(self, /) -> Value:
-        return Transformed("abs", self)
+        return SerVal("abs", self)
 
     def contains_text(
         self, val: IntoTextValue, *, failure_explaination: IntoTextValue | None = None
@@ -163,7 +164,7 @@ class Value(DecisionEntity, abc.ABC):
         self, *val: IntoValue, failure_explaination: IntoTextValue | None = None
     ) -> Criterion:
         """If this contains a specific sequence of fragments, with arbitraty gaps inbetween"""
-        return Crit(
+        return SerCrit(
             "contain_wgap",
             *val,
             sup=self,
@@ -185,7 +186,7 @@ class Value(DecisionEntity, abc.ABC):
             `regex crate <https://docs.rs/regex/latest/regex/#syntax>`_
 
         """
-        return Crit(
+        return SerCrit(
             "regex",
             pattern=pattern,
             sup=self,
@@ -291,13 +292,14 @@ class Value(DecisionEntity, abc.ABC):
         default_value: IntoValue | None = None,
         action: ValueCatchAction | None = None,
     ) -> Value:
-        return Transformed(
+        return SerVal(
             "catch",
+            self,
             error,
             only_if=only_if,
             default_value=Value.of(default_value),
             action=action,
-        )
+        )._with_syntax("meth")
 
 
 type IntoTextValue = str | templatelib.Template | Value
@@ -349,18 +351,31 @@ class Transformation(DecisionEntity, abc.ABC):
         pass
 
 
-class Transformed(Value):
+class SerVal(Value):
     def __init__(self, opcode: str, *args, **kwargs) -> None:
         super().__init__()
         self.opcode = opcode
         self.args = args
         self.kwargs = kwargs
+        self._syntax = "func"
 
     def _ar(self, *args, **kwargs) -> str:
         return super()._ar(*self.args, *args, **self.kwargs, **kwargs)
 
     def __repr__(self) -> str:
+        if self._syntax == "meth":
+            return f"{self.args[0]!r}.{self.opcode}({super()._ar(*self.args[1:], **self.kwargs)})"
+        if self._syntax == "prop":
+            extra = super()._ar(*self.args[1:], **self.kwargs)
+            if len(extra) > 0:
+                return f"{self.args[0]!r}.{self.opcode}({extra})"
+            else:
+                return f"{self.args[0]!r}.{self.opcode}"
         return f"{self.opcode}({self._ar()})"
+
+    def _with_syntax(self, syntax: typing.Literal["func", "meth", "prop"]) -> SerVal:
+        self._syntax = syntax
+        return self
 
 
 class TransformSingleNoParam(Transformation):
@@ -369,7 +384,7 @@ class TransformSingleNoParam(Transformation):
         self.opcode = opcode
 
     def on(self, value: IntoValue) -> Value:
-        return Transformed(self.opcode, value)
+        return SerVal(self.opcode, value)
 
     def __call__(self, value: IntoValue) -> Value:
         return self.on(value)
@@ -392,7 +407,7 @@ trim_end = TransformSingleNoParam("trim_end")
 
 
 def concat(*clauses: IntoValue) -> Value:
-    return Transformed("concat", *[Value.of(c) for c in clauses])
+    return SerVal("concat", *[Value.of(c) for c in clauses])
 
 
 def _concat_from_template(temp: templatelib.Template) -> Value:
@@ -472,7 +487,7 @@ class Criterion(DecisionEntity):
         fallback: Criterion | None = None,
         action: CriterionCatchAction | None = None,
     ) -> Criterion:
-        return Crit(
+        return SerCrit(
             "catch",
             error,
             only_if=only_if,
@@ -481,7 +496,7 @@ class Criterion(DecisionEntity):
         )
 
 
-class Crit(Criterion):
+class SerCrit(Criterion):
     def __init__(
         self,
         opcode: str,
@@ -500,7 +515,6 @@ class Crit(Criterion):
             *self._args,
             *args,
             **self._kwargs,
-            failure_explaination=self.failure_explaination,
             **kwargs,
         )
 
@@ -517,15 +531,15 @@ def if_then_else(if_: Criterion, then_: IntoValue, else_: IntoValue) -> Value: .
 def if_then_else(if_, then_, else_):  # type: ignore
     if isinstance(then_, Criterion):
         if isinstance(else_, Criterion):
-            return Crit("ifte", if_, then_, else_)
+            return SerCrit("ifte", if_, then_, else_)
     else:
         if not isinstance(else_, Criterion):
-            return Transformed("ifte", if_, then_, else_)
+            return SerVal("ifte", if_, then_, else_)
 
     raise TypeError("Can't use if_then_else with mixed signature for then_/else_")
 
 
-class compare(Crit):
+class compare(SerCrit):
     def __init__(
         self,
         left: IntoValue,
@@ -588,7 +602,7 @@ class compare(Crit):
         return cls(left, ">=", right)
 
 
-class Contained(Crit):
+class Contained(SerCrit):
     def __init__(
         self,
         *,
@@ -640,12 +654,12 @@ def negated(
     criterion: Criterion, *, failure_explaination: IntoTextValue | None = None
 ) -> Criterion:
     """Negate a criterion so that it accepts exactly when the original one didn't accept"""
-    c = Crit("negated", criterion, failure_explaination=failure_explaination)
+    c = SerCrit("negated", criterion, failure_explaination=failure_explaination)
     c._consname = "negated"
     return c
 
 
-class all_of(Crit):
+class all_of(SerCrit):
     def __init__(
         self, *clauses: Criterion, failure_explaination: IntoTextValue | None = None
     ) -> None:
@@ -665,7 +679,7 @@ class all_of(Crit):
     pass
 
 
-class any_of(Crit):
+class any_of(SerCrit):
     def __init__(
         self, *clauses: Criterion, failure_explaination: IntoTextValue | None = None
     ) -> None:
@@ -690,7 +704,7 @@ class any_of(Crit):
 
 class Selector(Value):
     def __init__(self, opcode: SelectorOpcodeT, *args) -> None:
-        super().__init__()
+        Value.__init__(self)
         self._opcode = opcode
         self._args = args
 
@@ -707,78 +721,7 @@ class FutureVariable(Selector):
         return f"VAR({self.name!r})"
 
 
-class FutureProperty(Selector):
-    # As soon as there are more future properties
-    @typing.overload
-    def __init__(
-        self, *, mode: Literal["array"], group: FutureArray, name: str
-    ) -> None: ...
-    @typing.overload
-    def __init__(
-        self, *, mode: Literal["map"], group: FutureMapping, name: str
-    ) -> None: ...
-
-    def __init__(self, *, mode, group, name: str) -> None:
-        super().__init__(mode + "prop", group, name)
-        self._mode = mode
-
-    @property
-    def group(self):
-        return self._args[0]
-
-    @property
-    def name(self):
-        return self._args[1]
-
-    def __repr__(self) -> str:
-        if self._mode == "array" and self.name == "length":
-            return f"{self.group!r}.length"
-        raise ValueError(
-            f"FutureProperty selector called with unsupported arguments: {self._mode} {self.group} {self.name}"
-        )
-
-
-# TODO: think if key should be allowed to be numeric `Value`
-class FutureItem(Selector):
-    def __init__(self, array: FutureArray, key: int) -> None:
-        super().__init__("arrayitem", array, key)
-
-    @property
-    def array(self) -> FutureArray:
-        return self._args[0]
-
-    @property
-    def position(self) -> int:
-        return self._args[1]
-
-    def __repr__(self) -> str:
-        return f"{self.array!r}[{self.position}]"
-
-
-class FutureMapItem(Selector):
-    def __init__(
-        self,
-        mapping: FutureMapping,
-        key: IntoValue | tuple[IntoValue, ...] | list[IntoValue],
-    ) -> None:
-        if not isinstance(key, tuple) and not isinstance(key, list):
-            key = (key,)
-        super().__init__("mapitem", mapping, tuple([Value.of(k) for k in key]))
-
-    @property
-    def mapping(self) -> FutureMapping:
-        return self._args[0]
-
-    @property
-    def key(self) -> tuple[Value, ...]:
-        return self._args[1]
-
-    def __repr__(self) -> str:
-        keys = ", ".join([repr(k) for k in self.key])
-        return f"{self.mapping!r}[{keys}]"
-
-
-class FutureArray:
+class FutureArray(typing.Protocol):
     """
     A :class:`FutureArray` represents a specific source of multiple
     values that are available – somewhere in the future – during the
@@ -815,141 +758,27 @@ class FutureArray:
     (This type should not be instantiated directly)
     """
 
-    @typing.overload
-    def __init__(
-        self, kind: Literal["ior"], name: Literal["input", "output"], /
-    ) -> None:
-        pass
-
-    @typing.overload
-    def __init__(self, kind: Literal["list"], name: str, /) -> None:
-        pass
-
-    @typing.overload
-    def __init__(
-        self,
-        kind: Literal["arrayview"],
-        perspective: Literal["keys", "values"],
-        mapping: FutureMapping,
-        /,
-    ) -> None:
-        pass
-
-    def __init__(self, kind: ArrayScopeT, *args) -> None:
-        super().__init__()
-        self._kind: ArrayScopeT = kind
-        self._args = args
-
+    def __getitem__(self, key: int) -> Value: ...
     @property
-    def kind(self) -> ArrayScopeT:
-        return self._kind
-
-    def __getitem__(self, key: int) -> FutureItem:
-        return FutureItem(self, key)
-
+    def last(self) -> Value: ...
     @property
-    def last(self) -> FutureItem:
-        return self[-1]
-
+    def length(self) -> Value: ...
     @property
-    def length(self) -> FutureProperty:
-        return FutureProperty(mode="array", group=self, name="length")
-
-    @property
-    def first(self) -> FutureItem:
-        return self[0]
-
-    def from_start1(self, onebased_n: int) -> FutureItem:
-        assert onebased_n > 0, f"{onebased_n=} should be at least 1"
-        return self[onebased_n - 1]
-
-    def from_end1(self, onebased_n: int) -> FutureItem:
-        assert onebased_n > 0, f"{onebased_n=} should be at least 1"
-        return self[-onebased_n]
-
-    def index1(self, onebased_n: int) -> FutureItem:
-        assert onebased_n != 0, (
-            "FutureArray: index1(1) means first element, index1(-1) last, but index1(0) is undefined"
-        )
-        if onebased_n > 0:
-            return self[onebased_n - 1]
-        return self[-onebased_n]
-
-
-class FutureStdArray(FutureArray):
-    @typing.overload
-    def __init__(
-        self, kind: Literal["ior"], name: Literal["input", "output", "randoms"], /
-    ) -> None:
-        pass
-
-    @typing.overload
-    def __init__(self, kind: Literal["list"], name: str, /) -> None:
-        pass
-
-    def __init__(self, kind, name):
-        super().__init__(kind, name)
-
-    @property
-    def name(self) -> str:
-        return self._args[0]
-
-    def __repr__(self) -> str:
-        if self.kind == "io" and self.name == "output":
-            return "OUTPUT"
-        elif self.kind == "io" and self.name == "input":
-            return "INPUT"
-        elif self.kind == "list":
-            return f"LIST({self.name!r})"
-        return super().__repr__()
-
-    pass
-
-
-class FutureViewArray(FutureArray):
-    @property
-    def perspective(self):
-        """The thing this array view makes accessible"""
-        return self._args[0]
-
-    @property
-    def inner_viewed(self):
-        return self._args[1]
-
-    def __init__(
-        self,
-        kind: Literal["arrayview"],
-        perspective: Literal["keys", "values"],
-        mapping: FutureMapping,
-        /,
-    ) -> None:
-        super().__init__(kind, perspective, mapping)
-
-    def __repr__(self) -> str:
-        return f"{self.inner_viewed!r}.{self.perspective}()"
-
-    pass
-
-
-OUTPUT: FutureArray = FutureStdArray("ior", "output")
-""":class:`FutureArray` that represents the output a submission produced during the current test"""
-
-INPUT: FutureArray = FutureStdArray("ior", "input")
-""":class:`FutureArray` that represents the output a submission got during the current test"""
-
-RANDOMS: FutureArray = FutureStdArray("ior", "randoms")
-""":class:`FutureArray` that represents the random numbers a submission requested and got during the current test"""
+    def first(self) -> Value: ...
+    def from_start1(self, onebased_n: int) -> Value: ...
+    def from_end1(self, onebased_n: int) -> Value: ...
+    def index1(self, onebased_n: int) -> Value: ...
 
 
 def LIST(name: str) -> FutureArray:
-    return FutureStdArray("list", name)
+    return DATA["lists", name]
 
 
 def VAR(name: str) -> FutureVariable:
-    return FutureVariable(name)
+    return DATA["variables", name]  # type: ignore
 
 
-class FutureMapping:
+class FutureMapping(DecisionEntity):
     """
     This is a key-value-mapping that lives in the future. (See :class:`FutureArray`)
     """
@@ -959,6 +788,7 @@ class FutureMapping:
         self._kind: MapScopeT = kind
         self._args = args
         self._kwargs = kwargs
+        self._definitly_array = False
 
     @property
     def kind(self) -> MapScopeT:
@@ -977,17 +807,115 @@ class FutureMapping:
         return FutureMapItem(self, key)
 
     @property
-    def length(self) -> FutureProperty:
+    def length(self) -> Value:
         """The number of items in the mapping"""
-        return FutureProperty(mode="map", group=self, name="length")
+        return SerVal("length", self)._with_syntax("prop")
 
     def keys(self) -> FutureArray:
-        """Array of all keys (indexed by numbers), in their sorting order"""
-        return FutureViewArray("arrayview", "keys", self)
+        """Array of all keys of the mapping (indexed by numbers), in their sorting order"""
+        return FutureViewMapping("view", "keys", self)
 
     def values(self) -> FutureArray:
-        """Array of all values (indexed by numbers), in the order of the sorted keys"""
-        return FutureViewArray("arrayview", "values", self)
+        """Array of all values of the mapping (indexed by numbers), in the order of the sorted keys"""
+        return FutureViewMapping("view", "values", self)
+
+    @property
+    def last(self) -> Value:
+        """
+        On arrays this will return the last element (length-1),
+        but on mappings this will be the element with the biggest key (sort order)
+        """
+        if self._definitly_array:
+            return self[-1]
+        return self.values()[-1]
+
+    @property
+    def first(self) -> Value:
+        """
+        On arrays this will return the first element (index 0),
+        but on mappings this will be the element with the smallest key (sort order)
+        """
+        if self._definitly_array:
+            return self[0]
+        return self.values()[0]
+
+    def from_start1(self, onebased_n: int) -> Value:
+        assert onebased_n > 0, f"{onebased_n=} should be at least 1"
+        return self[onebased_n - 1]
+
+    def from_end1(self, onebased_n: int) -> Value:
+        assert onebased_n > 0, f"{onebased_n=} should be at least 1"
+        return self[-onebased_n]
+
+    def index1(self, onebased_n: int) -> Value:
+        assert onebased_n != 0, (
+            "index1(1) means first element, index1(-1) last, but index1(0) is undefined"
+        )
+        if onebased_n > 0:
+            return self[onebased_n - 1]
+        return self[-onebased_n]
+
+    def __repr__(self) -> str:
+        return super()._repr(*self._args, **self._kwargs)
+
+    def _format_item_repr(self, key: tuple[Value, ...], base: str | None = None) -> str:
+        keys = "".join([f"[{k!r}]" for k in key])
+        base = base if base is not None else repr(self)
+        return f"{base}{keys}"
+
+
+class FutureMapItem(Selector, FutureMapping):
+    def __init__(
+        self,
+        mapping: FutureMapping,
+        key: IntoValue | tuple[IntoValue, ...] | list[IntoValue],
+    ) -> None:
+        if not isinstance(key, tuple) and not isinstance(key, list):
+            key = (key,)
+        if isinstance(mapping, FutureMapItem):
+            key = (*mapping._my_key, *key)
+            mapping = mapping.mapping
+        key = tuple([Value.of(k) for k in key])
+        # set both constructors to the same *args as both of them
+        # set self._args. Thisway we know exactly what self._args will be
+        FutureMapping.__init__(self, "mapitem", mapping, key)
+        Selector.__init__(self, "mapitem", mapping, key)
+
+    @property
+    def mapping(self) -> FutureMapping:
+        return self._args[0]
+
+    @property
+    def _my_key(self) -> tuple[Value, ...]:
+        return self._args[1]
+
+    def __repr__(self) -> str:
+        return self.mapping._format_item_repr(self._my_key)
+
+
+class FutureViewMapping(FutureMapping):
+    @property
+    def perspective(self):
+        """The thing this view makes accessible"""
+        return self._args[0]
+
+    @property
+    def inner_viewed(self):
+        return self._args[1]
+
+    def __init__(
+        self,
+        kind: Literal["view"],
+        perspective: Literal["keys", "values"],
+        mapping: FutureMapping,
+        /,
+    ) -> None:
+        super().__init__(kind, perspective, mapping)
+
+    def __repr__(self) -> str:
+        return f"{self.inner_viewed!r}.{self.perspective}()"
+
+    pass
 
 
 class FirstPatternCapture(FutureMapping):
@@ -1062,9 +990,105 @@ class NetworkRequest(FutureMapping):
     ) -> None:
         super().__init__(
             "network",
-            server,
-            Value.of(route),
+            server=server,
+            route=Value.of(route),
             method=method,
             json=json,
             allowed_status=allowed_status,
         )
+
+
+class _Data(FutureMapping):
+    """
+    :ref:`catchable-errors`
+    -----------------------
+
+    .. todo:: fill
+    """
+
+    def __init__(
+        self,
+    ) -> None:
+        super().__init__(
+            "data",
+        )
+
+    @typing.overload
+    def __getitem__(self, key: Literal["variables", "lists"]) -> FutureMapping: ...  # type: ignore
+    @typing.overload
+    def __getitem__(
+        self, key: Literal["output", "input", "randoms"]
+    ) -> FutureArray: ...  # type: ignore
+    @typing.overload
+    def __getitem__(
+        self, key: tuple[Literal["variables", "lists"], IntoTextValue]
+    ) -> FutureMapping: ...  # type: ignore
+    @typing.overload
+    def __getitem__(
+        self, key: tuple[Literal["output", "input", "randoms"], IntoValue]
+    ) -> FutureMapping: ...  # type: ignore
+    @typing.overload
+    def __getitem__(
+        self, key: tuple[Literal["lists"], IntoTextValue, IntoValue]
+    ) -> FutureMapping: ...  # type: ignore
+
+    def __getitem__(  # type: ignore
+        self, key
+    ) -> FutureMapItem:
+        return super().__getitem__(key)
+
+    @property
+    def variables(self) -> FutureMapping:
+        return self["variables"]
+
+    @property
+    def lists(self) -> FutureMapping:
+        return self["lists"]
+
+    @property
+    def input(self) -> FutureArray:
+        return self["input"]
+
+    @property
+    def output(self) -> FutureArray:
+        return self["output"]
+
+    @property
+    def randoms(self) -> FutureArray:
+        return self["randoms"]
+
+    def _format_item_repr(self, key: tuple[Value, ...], base=None) -> str:
+        if (
+            len(key) >= 1
+            and isinstance(key[0], LitValue)
+            and isinstance(top := key[0]._val, str)
+        ):
+            if len(key) >= 2:
+                if top == "lists":
+                    return f"LIST({key[1]!r})" + super()._format_item_repr(
+                        key[2:], base=""
+                    )
+                if top == "variables":
+                    return f"VAR({key[1]!r})" + super()._format_item_repr(
+                        key[2:], base=""
+                    )
+            if top in ("input", "output", "randoms"):
+                return top.upper() + super()._format_item_repr(key[1:], base="")
+
+        return super()._format_item_repr(key, base=base)
+
+    def __repr__(self) -> str:
+        return "DATA"
+
+
+DATA = _Data()
+
+
+OUTPUT: FutureArray = DATA["output"]
+""":class:`FutureArray` that represents the output a submission produced during the current test"""
+
+INPUT: FutureArray = DATA["input"]
+""":class:`FutureArray` that represents the output a submission got during the current test"""
+
+RANDOMS: FutureArray = DATA["randoms"]
+""":class:`FutureArray` that represents the random numbers a submission requested and got during the current test"""
