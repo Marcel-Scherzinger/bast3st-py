@@ -47,6 +47,7 @@ Placeholders live in the future
 Available decision components
 =============================
 
+.. _concept-selectors:
 
 Selectors
 ---------
@@ -68,8 +69,9 @@ Selectors
 - :func:`VAR("myvar")<bast3st.decisions.VAR>`: value of a specific variable
 - :func:`Value::first_capture <bast3st.decisions.Value.first_capture>`:
   :code:`value2 = value1.first_capture("^.(?P<sndLetter>).$")["sndLetter"]`
-- :class:`NetworkRequest <bast3st.decisions.NetworkRequest>`
+- :class:`NetworkRequest <bast3st.decisions.NetworkRequest>` (click for details)
 
+.. _concept-transformations:
 
 Transformations
 ---------------
@@ -86,6 +88,8 @@ Transformations
 - :meth:`Value::trim_start<bast3st.decisions.Value.trim_start>`
 - :meth:`Value::trim_end<bast3st.decisions.Value.trim_end>`
 - :func:`if_then_else <bast3st.decisions.if_then_else>`: select one of two options depending on the acceptance state of a criterion
+
+.. _concept-criteria:
 
 Criteria
 --------
@@ -154,3 +158,26 @@ back to the happy path when the error is handled.
 Uncatched errors have different effects depending on the context in which they occur.
 
 See :any:`err` for a list of available error kinds that can be catched.
+
+.. _concept-actions:
+
+Actions
+=======
+
+In addition to specifying if a test should pass or fail, :ref:`concept-criteria` can be used 
+to trigger *actions* if there conditions are satisfied:
+
+- :code:`send_msg(text, severity, level)`: generating a message that will be displayed
+  to the student who has submitted a file for checking.
+- :code:`pass_this_test_immediatly(explaination)`: stop further checking of :ref:`concept-criteria`
+  and mark the currently checked test as *passed*.
+- :code:`fail_this_test_immediatly(explaination)`: stop further checking of :ref:`concept-criteria`
+  and mark the currently checked test as *failed*.
+- :code:`set_flag(key, value)`: *experimental idea*
+
+  .. note:: `set_flag` could be a way to pass arbitrary data to whoever asked the server to
+     evaluate a submission. The flags from one action could maybe also be read from within
+     other criteria, **but never in the criterion where it was set** as this would imply
+     dependencies on the execution order of a single decision.
+
+    

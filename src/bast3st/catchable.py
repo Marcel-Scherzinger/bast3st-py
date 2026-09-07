@@ -14,7 +14,10 @@ class err(enum.Flag):
     """
 
     # network
+    #: the status that was reported isn't among the ones in the allowed list
     network_statusDisallowed = enum.auto()
+    #: a selector tried to extract json from the response,
+    #: but the response is not json
     network_respInvalid_notJson = enum.auto()
     network = network_respInvalid_notJson | network_statusDisallowed
     """
@@ -25,11 +28,12 @@ class err(enum.Flag):
     # missingSelection
     missingSelection_input = enum.auto()
     missingSelection_output = enum.auto()
+    #: a variable was requested that is missing, e.g. no variable with the specified name exists
     missingSelection_variable = enum.auto()
-    #: A list was requested and the whole list is missing.
+    #: a list was requested and the whole list is missing.
     #: If the list was requested by name, there is no list with this name.
     missingSelection_list_whole = enum.auto()
-    #: The list exists but the requested item of the list does not
+    #: the list exists but the requested item of the list does not
     missingSelection_list_item = enum.auto()
     missingSelection_list = missingSelection_list_whole | missingSelection_list_item
     """

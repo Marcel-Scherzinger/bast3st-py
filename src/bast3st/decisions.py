@@ -6,7 +6,6 @@ from string import templatelib
 import itertools
 import typing
 
-from bast3st.actions import CriterionCatchAction, ValueCatchAction
 from bast3st.catchable import err
 
 type StdArrayScopeT = Literal["ior", "list"]
@@ -103,41 +102,41 @@ class Value(DecisionEntity, abc.ABC):
     def __ge__(self, value: IntoValue, /) -> Criterion:
         return compare.ge(self, value)
 
-    def __add__(self, other: IntoValue, /) -> Transformed:
+    def __add__(self, other: IntoValue, /) -> Value:
         return Transformed("add", self, Value.ofStrict(other))
 
-    def __sub__(self, other: IntoValue, /) -> Transformed:
+    def __sub__(self, other: IntoValue, /) -> Value:
         return Transformed("sub", self, Value.ofStrict(other))
 
-    def __mul__(self, other: IntoValue, /) -> Transformed:
+    def __mul__(self, other: IntoValue, /) -> Value:
         return Transformed("mul", self, Value.ofStrict(other))
 
-    def __truediv__(self, other: IntoValue, /) -> Transformed:
+    def __truediv__(self, other: IntoValue, /) -> Value:
         return Transformed("truediv", self, Value.ofStrict(other))
 
-    def __floordiv__(self, other: IntoValue, /) -> Transformed:
+    def __floordiv__(self, other: IntoValue, /) -> Value:
         # // operator (integer division)
         return Transformed("floordiv", self, Value.ofStrict(other))
 
-    def __mod__(self, other: IntoValue, /) -> Transformed:
+    def __mod__(self, other: IntoValue, /) -> Value:
         return Transformed("mod", self, Value.ofStrict(other))
 
-    def __pow__(self, other: IntoValue, /) -> Transformed:
+    def __pow__(self, other: IntoValue, /) -> Value:
         return Transformed("pow", self, Value.ofStrict(other))
 
-    def __neg__(self, /) -> Transformed:
+    def __neg__(self, /) -> Value:
         return Transformed("neg", self)
 
-    def __floor__(self, /) -> Transformed:
+    def __floor__(self, /) -> Value:
         return Transformed("floor", self)
 
-    def __ceil__(self, /) -> Transformed:
+    def __ceil__(self, /) -> Value:
         return Transformed("ceil", self)
 
-    def __round__(self, /) -> Transformed:
+    def __round__(self, /) -> Value:
         return Transformed("round", self)
 
-    def __abs__(self, /) -> Transformed:
+    def __abs__(self, /) -> Value:
         return Transformed("abs", self)
 
     def contains_text(
@@ -230,9 +229,7 @@ class Value(DecisionEntity, abc.ABC):
             failure_explaination=failure_explaination,
         )
 
-    def pipe(
-        self, operation: Transformation, *operations: Transformation
-    ) -> Transformed:
+    def pipe(self, *operations: Transformation) -> Value:
         """
         Execute a sequence of transformations in order on this value
         and return the final result. The value itself is the input to
@@ -240,24 +237,24 @@ class Value(DecisionEntity, abc.ABC):
         :class:`Transformation` gets the output of the last as input.
         The last :class:`Transformation`'s output will be returned.
         """
-        val = operation.on(self)
+        val = self
         for op in operations:
             val = op.on(val)
         return val
 
-    def to_upper(self) -> Transformed:
+    def to_upper(self) -> Value:
         return self.pipe(to_upper)
 
-    def to_lower(self) -> Transformed:
+    def to_lower(self) -> Value:
         return self.pipe(to_lower)
 
-    def trim_start(self) -> Transformed:
+    def trim_start(self) -> Value:
         return self.pipe(trim_start)
 
-    def trim_end(self) -> Transformed:
+    def trim_end(self) -> Value:
         return self.pipe(trim_end)
 
-    def trim(self) -> Transformed:
+    def trim(self) -> Value:
         return self.pipe(trim)
 
     @typing.overload
@@ -293,7 +290,7 @@ class Value(DecisionEntity, abc.ABC):
         only_if: Criterion | None = None,
         default_value: IntoValue | None = None,
         action: ValueCatchAction | None = None,
-    ) -> Transformed:
+    ) -> Value:
         return Transformed(
             "catch",
             error,
@@ -320,6 +317,25 @@ class LitValue(Value):
 
 
 ################################
+# Actions
+################################
+
+MsgSeverityT = Literal["info", "warning", "error"]
+
+LevelT_value_catch = Literal["value-catch"]
+LevelT_criterion_catch = Literal["criterion-catch"]
+ActionScope = typing.TypeVar("ActionScope", LevelT_value_catch, LevelT_criterion_catch)
+type LevelT = LevelT_criterion_catch | LevelT_value_catch
+
+
+class Action(typing.Generic[ActionScope]):
+    pass
+
+
+type ValueCatchAction = Action[LevelT_value_catch]
+type CriterionCatchAction = Action[LevelT_criterion_catch]
+
+################################
 # Transformations
 ################################
 
@@ -329,7 +345,7 @@ class Transformation(DecisionEntity, abc.ABC):
         pass
 
     @abc.abstractmethod
-    def on(self, value: IntoValue) -> Transformed:
+    def on(self, value: IntoValue) -> Value:
         pass
 
 
@@ -352,10 +368,10 @@ class TransformSingleNoParam(Transformation):
         super().__init__()
         self.opcode = opcode
 
-    def on(self, value: IntoValue) -> Transformed:
+    def on(self, value: IntoValue) -> Value:
         return Transformed(self.opcode, value)
 
-    def __call__(self, value: IntoValue) -> Transformed:
+    def __call__(self, value: IntoValue) -> Value:
         return self.on(value)
 
 
@@ -375,11 +391,11 @@ trim_end = TransformSingleNoParam("trim_end")
 """:class:`Transformation` removing all whitespace from the end of the stringified value"""
 
 
-def concat(*clauses: IntoValue) -> Transformed:
+def concat(*clauses: IntoValue) -> Value:
     return Transformed("concat", *[Value.of(c) for c in clauses])
 
 
-def _concat_from_template(temp: templatelib.Template) -> Transformed:
+def _concat_from_template(temp: templatelib.Template) -> Value:
     return concat(
         *tuple(
             x
@@ -1005,6 +1021,13 @@ class NetworkRequest(FutureMapping):
         If the server responds with a code that isn't listed here, it will be considered
         one of the :ref:`catchable-errors`,
         but only if a map item is used that is expected to require a successful response.
+
+    :ref:`catchable-errors`
+    -----------------------
+
+    - :any:`err.network_statusDisallowed`
+    - :any:`err.network_respInvalid_notJson`
+    - :any:`err.network`
     """
 
     @typing.overload
