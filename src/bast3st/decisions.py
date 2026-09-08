@@ -1,12 +1,20 @@
 from __future__ import annotations
 
-from typing import NoReturn, Literal
+from typing import Any, NoReturn, Literal
 import abc
 from string import templatelib
 import itertools
 import typing
+import copy
 
 from bast3st.catchable import err
+from bast3st.features import (
+    FS_read_rundata,
+    Features,
+    Features2,
+    Features3,
+    Features4,
+)
 
 type StdArrayScopeT = Literal["ior", "list"]
 type ArrayScopeT = Literal["arrayview"] | StdArrayScopeT
@@ -21,7 +29,7 @@ type ContainOpcodeT = Literal["contain_onlynum", "contain_num", "contain_text"]
 NO_BOOL_ON_CRITERION = "A criterion shouldn't be used in Python boolean expressions, you can't use Pythons and, or and not keywords on it, but & (all_of(...)), | (any_of(...)) and ~ (.negated) work!"
 
 
-class DecisionEntity(abc.ABC):
+class DecisionEntity(typing.Generic[Features], abc.ABC):
     def _ar(self, *args, **kwargs) -> str:
         """
         This should format custom arguments together with the ones of the base class
@@ -52,14 +60,14 @@ class DecisionEntity(abc.ABC):
 ################################
 
 
-class Value(DecisionEntity, abc.ABC):
+class Value(DecisionEntity[Features], abc.ABC):
     @typing.overload
     @classmethod
-    def of(cls, val: IntoValue) -> Value: ...
+    def of(cls, val: IntoValue[Features]) -> Value[Features]: ...
 
     @typing.overload
     @classmethod
-    def of(cls, val: IntoValue | None) -> Value | None: ...
+    def of(cls, val: IntoValue[Features] | None) -> Value[Features] | None: ...
 
     @classmethod
     def of(cls, val):
@@ -69,7 +77,7 @@ class Value(DecisionEntity, abc.ABC):
         return None
 
     @classmethod
-    def ofStrict(cls, val: IntoValue) -> Value:
+    def ofStrict(cls, val: IntoValue[Features]) -> Value[Features]:
         """
         Converts a set of supported types into sub-classes of :class:`Value`
 
@@ -85,64 +93,73 @@ class Value(DecisionEntity, abc.ABC):
             f"Unknown type for Value.of: {type(val)}, maybe you shouln't use this as a value ({val!r})"
         )
 
-    def __eq__(self, value: IntoValue, /) -> Criterion:  # type: ignore
+    def __eq__(self, value: IntoValue[Features2], /) -> Criterion[Features | Features2]:  # type: ignore
         return compare.eq(self, value)
 
-    def __ne__(self, value: IntoValue, /) -> Criterion:  # type: ignore
+    def __ne__(self, value: IntoValue[Features2], /) -> Criterion[Features | Features2]:  # type: ignore
         return compare.neq(self, value)
 
-    def __lt__(self, value: IntoValue, /) -> Criterion:
+    def __lt__(self, value: IntoValue[Features2], /) -> Criterion[Features | Features2]:
         return compare.lt(self, value)
 
-    def __gt__(self, value: IntoValue, /) -> Criterion:
+    def __gt__(self, value: IntoValue[Features2], /) -> Criterion[Features | Features2]:
         return compare.gt(self, value)
 
-    def __le__(self, value: IntoValue, /) -> Criterion:
+    def __le__(self, value: IntoValue[Features2], /) -> Criterion[Features | Features2]:
         return compare.le(self, value)
 
-    def __ge__(self, value: IntoValue, /) -> Criterion:
+    def __ge__(self, value: IntoValue[Features2], /) -> Criterion[Features | Features2]:
         return compare.ge(self, value)
 
-    def __add__(self, other: IntoValue, /) -> Value:
+    def __add__(
+        self, other: IntoValue[Features2], /
+    ) -> Value[Features | Features2 | Features2]:
         return SerVal("add", self, Value.ofStrict(other))
 
-    def __sub__(self, other: IntoValue, /) -> Value:
+    def __sub__(self, other: IntoValue[Features2], /) -> Value[Features | Features2]:
         return SerVal("sub", self, Value.ofStrict(other))
 
-    def __mul__(self, other: IntoValue, /) -> Value:
+    def __mul__(self, other: IntoValue[Features2], /) -> Value[Features | Features2]:
         return SerVal("mul", self, Value.ofStrict(other))
 
-    def __truediv__(self, other: IntoValue, /) -> Value:
+    def __truediv__(
+        self, other: IntoValue[Features2], /
+    ) -> Value[Features | Features2]:
         return SerVal("truediv", self, Value.ofStrict(other))
 
-    def __floordiv__(self, other: IntoValue, /) -> Value:
+    def __floordiv__(
+        self, other: IntoValue[Features2], /
+    ) -> Value[Features | Features2]:
         # // operator (integer division)
         return SerVal("floordiv", self, Value.ofStrict(other))
 
-    def __mod__(self, other: IntoValue, /) -> Value:
+    def __mod__(self, other: IntoValue[Features2], /) -> Value[Features | Features2]:
         return SerVal("mod", self, Value.ofStrict(other))
 
-    def __pow__(self, other: IntoValue, /) -> Value:
+    def __pow__(self, other: IntoValue[Features2], /) -> Value[Features | Features2]:
         return SerVal("pow", self, Value.ofStrict(other))
 
-    def __neg__(self, /) -> Value:
+    def __neg__(self, /) -> Value[Features]:
         return SerVal("neg", self)
 
-    def __floor__(self, /) -> Value:
+    def __floor__(self, /) -> Value[Features]:
         return SerVal("floor", self)
 
-    def __ceil__(self, /) -> Value:
+    def __ceil__(self, /) -> Value[Features]:
         return SerVal("ceil", self)
 
-    def __round__(self, /) -> Value:
+    def __round__(self, /) -> Value[Features]:
         return SerVal("round", self)
 
-    def __abs__(self, /) -> Value:
+    def __abs__(self, /) -> Value[Features]:
         return SerVal("abs", self)
 
     def contains_text(
-        self, val: IntoTextValue, *, failure_explaination: IntoTextValue | None = None
-    ) -> Criterion:
+        self,
+        val: IntoTextValue[Features2],
+        *,
+        failure_explaination: IntoTextValue[Features3] | None = None,
+    ) -> Criterion[Features | Features2 | Features3]:
         return Contained(
             sub=val,
             sup=self,
@@ -151,8 +168,11 @@ class Value(DecisionEntity, abc.ABC):
         )
 
     def contains_only_this_number(
-        self, val: IntoValue, *, failure_explaination: IntoTextValue | None = None
-    ) -> Criterion:
+        self,
+        val: IntoValue[Features2],
+        *,
+        failure_explaination: IntoTextValue[Features3] | None = None,
+    ) -> Criterion[Features | Features2 | Features3]:
         return Contained(
             sub=val,
             sup=self,
@@ -161,8 +181,10 @@ class Value(DecisionEntity, abc.ABC):
         )
 
     def contains_with_gaps(
-        self, *val: IntoValue, failure_explaination: IntoTextValue | None = None
-    ) -> Criterion:
+        self,
+        *val: IntoValue[Features2],
+        failure_explaination: IntoTextValue[Features3] | None = None,
+    ) -> Criterion[Features | Features2 | Features3]:
         """If this contains a specific sequence of fragments, with arbitraty gaps inbetween"""
         return SerCrit(
             "contain_wgap",
@@ -172,8 +194,10 @@ class Value(DecisionEntity, abc.ABC):
         )
 
     def matches(
-        self, pattern: IntoTextValue, failure_explaination: IntoTextValue | None = None
-    ) -> Criterion:
+        self,
+        pattern: IntoTextValue[Features2],
+        failure_explaination: IntoTextValue[Features3] | None = None,
+    ) -> Criterion[Features | Features2 | Features3]:
         """
         If this matches a *Rust regex* regular expression.
 
@@ -193,7 +217,9 @@ class Value(DecisionEntity, abc.ABC):
             failure_explaination=failure_explaination,
         )
 
-    def first_capture(self, pattern: IntoTextValue) -> FutureMapping:
+    def first_capture(
+        self, pattern: IntoTextValue[Features2]
+    ) -> FutureMapping[Features | Features2]:
         """
         Tries to match a *Rust regex* regular expression and returns
         a mapping of the first match that allows accessing the
@@ -211,8 +237,11 @@ class Value(DecisionEntity, abc.ABC):
         return FirstPatternCapture(pattern, self)
 
     def contains_this_number(
-        self, val: IntoValue, *, failure_explaination: IntoTextValue | None = None
-    ) -> Criterion:
+        self,
+        val: IntoValue[Features2],
+        *,
+        failure_explaination: IntoTextValue[Features3] | None = None,
+    ) -> Criterion[Features | Features2 | Features3]:
         return Contained(
             sub=val,
             sup=self,
@@ -221,8 +250,11 @@ class Value(DecisionEntity, abc.ABC):
         )
 
     def text_is_contained_in(
-        self, val: IntoTextValue, *, failure_explaination: IntoTextValue | None = None
-    ) -> Criterion:
+        self,
+        val: IntoTextValue[Features2],
+        *,
+        failure_explaination: IntoTextValue[Features3] | None = None,
+    ) -> Criterion[Features | Features2 | Features3]:
         return Contained(
             sub=self,
             sup=val,
@@ -230,7 +262,9 @@ class Value(DecisionEntity, abc.ABC):
             failure_explaination=failure_explaination,
         )
 
-    def pipe(self, *operations: Transformation) -> Value:
+    def pipe(
+        self, *operations: Transformation[Features2]
+    ) -> Value[Features | Features2]:
         """
         Execute a sequence of transformations in order on this value
         and return the final result. The value itself is the input to
@@ -238,24 +272,24 @@ class Value(DecisionEntity, abc.ABC):
         :class:`Transformation` gets the output of the last as input.
         The last :class:`Transformation`'s output will be returned.
         """
-        val = self
+        val: Value[Features | Features2] = self
         for op in operations:
             val = op.on(val)
         return val
 
-    def to_upper(self) -> Value:
+    def to_upper(self) -> Value[Features]:
         return self.pipe(to_upper)
 
-    def to_lower(self) -> Value:
+    def to_lower(self) -> Value[Features]:
         return self.pipe(to_lower)
 
-    def trim_start(self) -> Value:
+    def trim_start(self) -> Value[Features]:
         return self.pipe(trim_start)
 
-    def trim_end(self) -> Value:
+    def trim_end(self) -> Value[Features]:
         return self.pipe(trim_end)
 
-    def trim(self) -> Value:
+    def trim(self) -> Value[Features]:
         return self.pipe(trim)
 
     @typing.overload
@@ -263,35 +297,35 @@ class Value(DecisionEntity, abc.ABC):
         self,
         error: err,
         *,
-        default_value: IntoValue,
-        only_if: Criterion | None = None,
-    ): ...
+        default_value: IntoValue[Features2],
+        only_if: Criterion[Features3] | None = None,
+    ) -> Value[Features | Features2 | Features3]: ...
     @typing.overload
     def catch(
         self,
         error: err,
         *,
-        action: ValueCatchAction,
-        only_if: Criterion | None = None,
-    ): ...
+        action: Action[Features2],
+        only_if: Criterion[Features3] | None = None,
+    ) -> Value[Features | Features2 | Features3]: ...
     @typing.overload
     def catch(
         self,
         error: err,
         *,
-        only_if: Criterion | None = None,
-        default_value: IntoValue | None,
-        action: ValueCatchAction | None,
-    ): ...
+        only_if: Criterion[Features2] | None = None,
+        default_value: IntoValue[Features3] | None,
+        action: Action[Features4] | None,
+    ) -> Value[Features | Features2 | Features3 | Features4]: ...
 
     def catch(
         self,
         error: err,
         *,
-        only_if: Criterion | None = None,
-        default_value: IntoValue | None = None,
-        action: ValueCatchAction | None = None,
-    ) -> Value:
+        only_if: Criterion[Features2] | None = None,
+        default_value: IntoValue[Features3] | None = None,
+        action: Action[Features4] | None = None,
+    ) -> Value[Features | Features2 | Features3 | Features4]:
         return SerVal(
             "catch",
             self,
@@ -302,10 +336,10 @@ class Value(DecisionEntity, abc.ABC):
         )._with_syntax("meth")
 
 
-type IntoTextValue = str | templatelib.Template | Value
+type IntoTextValue[Features] = str | templatelib.Template | Value[Features]
 """Any type that can be converted into a :class:`Value` and is likely a text"""
 
-type IntoValue = IntoTextValue | float | int | bool
+type IntoValue[Features] = IntoTextValue[Features] | float | int | bool
 """Any type that can be converted into a :class:`Value`"""
 
 
@@ -324,34 +358,26 @@ class LitValue(Value):
 
 MsgSeverityT = Literal["info", "warning", "error"]
 
-LevelT_value_catch = Literal["value-catch"]
-LevelT_criterion_catch = Literal["criterion-catch"]
-ActionScope = typing.TypeVar("ActionScope", LevelT_value_catch, LevelT_criterion_catch)
-type LevelT = LevelT_criterion_catch | LevelT_value_catch
 
-
-class Action(typing.Generic[ActionScope]):
+class Action(DecisionEntity[Features]):
     pass
 
-
-type ValueCatchAction = Action[LevelT_value_catch]
-type CriterionCatchAction = Action[LevelT_criterion_catch]
 
 ################################
 # Transformations
 ################################
 
 
-class Transformation(DecisionEntity, abc.ABC):
+class Transformation(DecisionEntity[Features], abc.ABC):
     def __init__(self) -> None:
         pass
 
     @abc.abstractmethod
-    def on(self, value: IntoValue) -> Value:
+    def on(self, value: IntoValue[Features2]) -> Value[Features | Features2]:
         pass
 
 
-class SerVal(Value):
+class SerVal(Value[Features]):
     def __init__(self, opcode: str, *args, **kwargs) -> None:
         super().__init__()
         self.opcode = opcode
@@ -378,35 +404,35 @@ class SerVal(Value):
         return self
 
 
-class TransformSingleNoParam(Transformation):
+class TransformSingleNoParam(Transformation[Features]):
     def __init__(self, opcode: str) -> None:
         super().__init__()
         self.opcode = opcode
 
-    def on(self, value: IntoValue) -> Value:
+    def on(self, value: IntoValue[Features2]) -> Value[Features | Features2]:
         return SerVal(self.opcode, value)
 
-    def __call__(self, value: IntoValue) -> Value:
+    def __call__(self, value: IntoValue[Features2]) -> Value[Features | Features2]:
         return self.on(value)
 
 
-to_upper = TransformSingleNoParam("to_upper")
+to_upper = TransformSingleNoParam[Any]("to_upper")
 """:class:`Transformation` converting a value to uppercase"""
 
-to_lower = TransformSingleNoParam("to_lower")
+to_lower = TransformSingleNoParam[Any]("to_lower")
 """:class:`Transformation` converting a value to lowercase"""
 
-trim = TransformSingleNoParam("trim")
+trim = TransformSingleNoParam[Any]("trim")
 """:class:`Transformation` removing all whitespace from start and end of the stringified value"""
 
-trim_start = TransformSingleNoParam("trim_start")
+trim_start = TransformSingleNoParam[Any]("trim_start")
 """:class:`Transformation` removing all whitespace from the start of the stringified value"""
 
-trim_end = TransformSingleNoParam("trim_end")
+trim_end = TransformSingleNoParam[Any]("trim_end")
 """:class:`Transformation` removing all whitespace from the end of the stringified value"""
 
 
-def concat(*clauses: IntoValue) -> Value:
+def concat(*clauses: IntoValue[Features]) -> Value[Features]:
     return SerVal("concat", *[Value.of(c) for c in clauses])
 
 
@@ -426,29 +452,34 @@ def _concat_from_template(temp: templatelib.Template) -> Value:
 ################################
 
 
-class Criterion(DecisionEntity):
-    def __init__(self, *, failure_explaination: IntoTextValue | None) -> None:
+class Criterion(DecisionEntity[Features]):
+    def __init__(self, *, failure_explaination: IntoTextValue[Features] | None) -> None:
         super().__init__()
         self.failure_explaination = Value.of(failure_explaination)
 
     def __bool__(self) -> NoReturn:
         raise TypeError(NO_BOOL_ON_CRITERION + f" ({self!r})")
 
-    def negate(self, *, failure_explaination: IntoTextValue | None = None) -> Criterion:
+    def negate(
+        self, *, failure_explaination: IntoTextValue[Features2] | None = None
+    ) -> Criterion[Features | Features2]:
         """Create criterion with the success condition negated"""
         return negated(self, failure_explaination=failure_explaination)
 
     @property
-    def negated(self) -> Criterion:
+    def negated(self) -> Criterion[Features]:
         """Criterion with the success condition negated"""
         return negated(self)
 
-    def with_failure_explaination(self, val: IntoTextValue) -> Criterion:
-        self.failure_explaination = Value.of(val)
+    def with_failure_explaination(
+        self, val: IntoTextValue[Features2]
+    ) -> Criterion[Features | Features2]:
+        other: Criterion[Features | Features2] = copy.deepcopy(self)
+        other.failure_explaination = Value[Features | Features2].of(val)
         return self
 
     def _ar(self, *args, **kwargs) -> str:
-        extend = {}
+        extend: dict = {}
         if self.failure_explaination is not None:
             extend.update(failure_explaination=self.failure_explaination)
         return super()._ar(*args, **kwargs, **extend)
@@ -458,35 +489,35 @@ class Criterion(DecisionEntity):
         self,
         error: err,
         *,
-        fallback: Criterion,
-        only_if: Criterion | None = None,
-    ): ...
+        fallback: Criterion[Features2],
+        only_if: Criterion[Features3] | None = None,
+    ) -> Criterion[Features | Features2 | Features3]: ...
     @typing.overload
     def catch(
         self,
         error: err,
         *,
-        action: CriterionCatchAction,
-        only_if: Criterion | None = None,
-    ): ...
+        action: Action[Features2],
+        only_if: Criterion[Features3] | None = None,
+    ) -> Criterion[Features | Features2 | Features3]: ...
     @typing.overload
     def catch(
         self,
         error: err,
         *,
-        only_if: Criterion | None = None,
-        fallback: Criterion | None,
-        action: CriterionCatchAction | None,
-    ): ...
+        only_if: Criterion[Features2] | None = None,
+        fallback: Criterion[Features3] | None,
+        action: Action[Features4] | None,
+    ) -> Criterion[Features | Features2 | Features3 | Features4]: ...
 
     def catch(
         self,
         error: err,
         *,
-        only_if: Criterion | None = None,
-        fallback: Criterion | None = None,
-        action: CriterionCatchAction | None = None,
-    ) -> Criterion:
+        only_if: Criterion[Features2] | None = None,
+        fallback: Criterion[Features3] | None = None,
+        action: Action[Features4] | None = None,
+    ) -> Criterion[Features | Features2 | Features3 | Features4]:
         return SerCrit(
             "catch",
             error,
@@ -496,12 +527,12 @@ class Criterion(DecisionEntity):
         )
 
 
-class SerCrit(Criterion):
+class SerCrit(Criterion[Features]):
     def __init__(
         self,
         opcode: str,
         *args,
-        failure_explaination: IntoTextValue | None = None,
+        failure_explaination: IntoTextValue[Features] | None = None,
         **kwargs,
     ) -> None:
         super().__init__(failure_explaination=Value.of(failure_explaination))
@@ -523,30 +554,42 @@ class SerCrit(Criterion):
 
 
 @typing.overload
-def if_then_else(if_: Criterion, then_: Criterion, else_: Criterion) -> Criterion: ...
+def if_then_else(
+    if_: Criterion[Features], then_: Criterion[Features2], else_: Criterion[Features3]
+) -> Criterion[Features | Features2 | Features3]: ...
 @typing.overload
-def if_then_else(if_: Criterion, then_: IntoValue, else_: IntoValue) -> Value: ...
+def if_then_else(
+    if_: Criterion[Features], then_: IntoValue[Features2], else_: IntoValue[Features3]
+) -> Value[Features | Features2 | Features3]: ...
+@typing.overload
+def if_then_else(
+    if_: Criterion[Features], then_: Action[Features2], else_: Action[Features3]
+) -> Action[Features | Features2 | Features3]: ...
 
 
 def if_then_else(if_, then_, else_):  # type: ignore
+    if (
+        isinstance(then_, Criterion) != isinstance(else_, Criterion)
+        or isinstance(then_, Action) != isinstance(else_, Action)
+        or isinstance(then_, Value) != isinstance(else_, Value)
+    ):
+        raise TypeError("Can't use if_then_else with mixed signature for then_/else_")
+
     if isinstance(then_, Criterion):
-        if isinstance(else_, Criterion):
-            return SerCrit("ifte", if_, then_, else_)
+        return SerCrit("ifte", if_, then_, else_)
     else:
-        if not isinstance(else_, Criterion):
-            return SerVal("ifte", if_, then_, else_)
-
-    raise TypeError("Can't use if_then_else with mixed signature for then_/else_")
+        # TODO: rethink if actions should be different
+        return SerVal("ifte", if_, then_, else_)
 
 
-class compare(SerCrit):
+class compare(SerCrit[Features | Features2 | Features3]):
     def __init__(
         self,
-        left: IntoValue,
+        left: IntoValue[Features],
         relation: RelationT,
-        right: IntoValue,
+        right: IntoValue[Features2],
         *,
-        failure_explaination: IntoTextValue | None = None,
+        failure_explaination: IntoTextValue[Features3] | None = None,
     ) -> None:
         """
         Compare two future values with a given relation
@@ -567,49 +610,49 @@ class compare(SerCrit):
         return self.opcode
 
     @property
-    def left(self) -> Value:
+    def left(self) -> Value[Features]:
         return self._args[0]
 
     @property
-    def right(self) -> Value:
+    def right(self) -> Value[Features2]:
         return self._args[1]
 
     def __repr__(self) -> str:
         return f"{self.left!r} {self.relation} {self.right!r}"
 
     @classmethod
-    def eq(cls, left: IntoValue, right: IntoValue) -> compare:
+    def eq(cls, left: IntoValue[Features], right: IntoValue[Features2]) -> compare:
         return cls(left, "==", right)
 
     @classmethod
-    def neq(cls, left: IntoValue, right: IntoValue) -> compare:
+    def neq(cls, left: IntoValue[Features], right: IntoValue[Features2]) -> compare:
         return cls(left, "!=", right)
 
     @classmethod
-    def lt(cls, left: IntoValue, right: IntoValue) -> compare:
+    def lt(cls, left: IntoValue[Features], right: IntoValue[Features2]) -> compare:
         return cls(left, "<", right)
 
     @classmethod
-    def gt(cls, left: IntoValue, right: IntoValue) -> compare:
+    def gt(cls, left: IntoValue[Features], right: IntoValue[Features2]) -> compare:
         return cls(left, ">", right)
 
     @classmethod
-    def le(cls, left: IntoValue, right: IntoValue) -> compare:
+    def le(cls, left: IntoValue[Features], right: IntoValue[Features2]) -> compare:
         return cls(left, "<=", right)
 
     @classmethod
-    def ge(cls, left: IntoValue, right: IntoValue) -> compare:
+    def ge(cls, left: IntoValue[Features], right: IntoValue[Features2]) -> compare:
         return cls(left, ">=", right)
 
 
-class Contained(SerCrit):
+class Contained(SerCrit[Features | Features2 | Features3]):
     def __init__(
         self,
         *,
-        sub: IntoValue,
-        sup: IntoTextValue,
+        sub: IntoValue[Features],
+        sup: IntoTextValue[Features2],
         mode: ContainOpcodeT = "contain_text",
-        failure_explaination: IntoTextValue | None = None,
+        failure_explaination: IntoTextValue[Features3] | None = None,
     ) -> None:
         super().__init__(
             mode,
@@ -623,11 +666,11 @@ class Contained(SerCrit):
         return self.opcode  # type: ignore
 
     @property
-    def sub(self) -> Value:
+    def sub(self) -> Value[Features]:
         return self._args[0]
 
     @property
-    def sup(self) -> Value:
+    def sup(self) -> Value[Features2]:
         return self._args[1]
 
     def __repr__(self) -> str:
@@ -651,19 +694,25 @@ class Contained(SerCrit):
 
 
 def negated(
-    criterion: Criterion, *, failure_explaination: IntoTextValue | None = None
-) -> Criterion:
+    criterion: Criterion[Features],
+    *,
+    failure_explaination: IntoTextValue[Features2] | None = None,
+) -> Criterion[Features | Features2]:
     """Negate a criterion so that it accepts exactly when the original one didn't accept"""
-    c = SerCrit("negated", criterion, failure_explaination=failure_explaination)
+    c: SerCrit[Features | Features2] = SerCrit(
+        "negated", criterion, failure_explaination=failure_explaination
+    )
     c._consname = "negated"
     return c
 
 
-class all_of(SerCrit):
+class all_of(SerCrit[Features | Features2]):
     def __init__(
-        self, *clauses: Criterion, failure_explaination: IntoTextValue | None = None
+        self,
+        *clauses: Criterion[Features],
+        failure_explaination: IntoTextValue[Features2] | None = None,
     ) -> None:
-        _clauses = []
+        _clauses: list[Criterion[Features]] = []
         for c in clauses:
             if isinstance(c, self.__class__):
                 _clauses.extend(c._args)
@@ -679,11 +728,13 @@ class all_of(SerCrit):
     pass
 
 
-class any_of(SerCrit):
+class any_of(SerCrit[Features | Features2]):
     def __init__(
-        self, *clauses: Criterion, failure_explaination: IntoTextValue | None = None
+        self,
+        *clauses: Criterion[Features],
+        failure_explaination: IntoTextValue[Features2] | None = None,
     ) -> None:
-        _clauses = []
+        _clauses: list[Criterion[Features]] = []
         for c in clauses:
             if isinstance(c, self.__class__):
                 _clauses.extend(c._args)
@@ -702,14 +753,14 @@ class any_of(SerCrit):
 ################################
 
 
-class Selector(Value):
+class Selector(Value[Features]):
     def __init__(self, opcode: SelectorOpcodeT, *args) -> None:
         Value.__init__(self)
         self._opcode = opcode
         self._args = args
 
 
-class FutureVariable(Selector):
+class FutureVariable(Selector[Features]):
     def __init__(self, name: str) -> None:
         super().__init__("var", name)
 
@@ -721,7 +772,7 @@ class FutureVariable(Selector):
         return f"VAR({self.name!r})"
 
 
-class FutureArray(typing.Protocol):
+class FutureArray(typing.Protocol[Features]):
     """
     A :class:`FutureArray` represents a specific source of multiple
     values that are available – somewhere in the future – during the
@@ -758,27 +809,27 @@ class FutureArray(typing.Protocol):
     (This type should not be instantiated directly)
     """
 
-    def __getitem__(self, key: int) -> Value: ...
+    def __getitem__(self, key: IntoValue[Features2]) -> Value[Features | Features2]: ...
     @property
-    def last(self) -> Value: ...
+    def last(self) -> Value[Features]: ...
     @property
-    def length(self) -> Value: ...
+    def length(self) -> Value[Features]: ...
     @property
-    def first(self) -> Value: ...
-    def from_start1(self, onebased_n: int) -> Value: ...
-    def from_end1(self, onebased_n: int) -> Value: ...
-    def index1(self, onebased_n: int) -> Value: ...
+    def first(self) -> Value[Features]: ...
+    def from_start1(self, onebased_n: int) -> Value[Features]: ...
+    def from_end1(self, onebased_n: int) -> Value[Features]: ...
+    def index1(self, onebased_n: int) -> Value[Features]: ...
 
 
-def LIST(name: str) -> FutureArray:
+def LIST(name: str) -> FutureArray[FS_read_rundata]:
     return DATA["lists", name]
 
 
-def VAR(name: str) -> FutureVariable:
+def VAR(name: str) -> FutureVariable[FS_read_rundata]:
     return DATA["variables", name]  # type: ignore
 
 
-class FutureMapping(DecisionEntity):
+class FutureMapping(DecisionEntity[Features]):
     """
     This is a key-value-mapping that lives in the future. (See :class:`FutureArray`)
     """
@@ -795,8 +846,11 @@ class FutureMapping(DecisionEntity):
         return self._kind
 
     def __getitem__(
-        self, key: IntoValue | list[IntoValue] | tuple[IntoValue, ...]
-    ) -> FutureMapItem:
+        self,
+        key: IntoValue[Features2]
+        | list[IntoValue[Features2]]
+        | tuple[IntoValue[Features2], ...],
+    ) -> FutureMapItem[Features, Features2]:
         """
         Get the item with the specified key.
 
@@ -807,20 +861,20 @@ class FutureMapping(DecisionEntity):
         return FutureMapItem(self, key)
 
     @property
-    def length(self) -> Value:
+    def length(self) -> Value[Features]:
         """The number of items in the mapping"""
         return SerVal("length", self)._with_syntax("prop")
 
-    def keys(self) -> FutureArray:
+    def keys(self) -> FutureArray[Features]:
         """Array of all keys of the mapping (indexed by numbers), in their sorting order"""
         return FutureViewMapping("view", "keys", self)
 
-    def values(self) -> FutureArray:
+    def values(self) -> FutureArray[Features]:
         """Array of all values of the mapping (indexed by numbers), in the order of the sorted keys"""
         return FutureViewMapping("view", "values", self)
 
     @property
-    def last(self) -> Value:
+    def last(self) -> Value[Features]:
         """
         On arrays this will return the last element (length-1),
         but on mappings this will be the element with the biggest key (sort order)
@@ -830,7 +884,7 @@ class FutureMapping(DecisionEntity):
         return self.values()[-1]
 
     @property
-    def first(self) -> Value:
+    def first(self) -> Value[Features]:
         """
         On arrays this will return the first element (index 0),
         but on mappings this will be the element with the smallest key (sort order)
@@ -839,15 +893,15 @@ class FutureMapping(DecisionEntity):
             return self[0]
         return self.values()[0]
 
-    def from_start1(self, onebased_n: int) -> Value:
+    def from_start1(self, onebased_n: int) -> Value[Features]:
         assert onebased_n > 0, f"{onebased_n=} should be at least 1"
         return self[onebased_n - 1]
 
-    def from_end1(self, onebased_n: int) -> Value:
+    def from_end1(self, onebased_n: int) -> Value[Features]:
         assert onebased_n > 0, f"{onebased_n=} should be at least 1"
         return self[-onebased_n]
 
-    def index1(self, onebased_n: int) -> Value:
+    def index1(self, onebased_n: int) -> Value[Features]:
         assert onebased_n != 0, (
             "index1(1) means first element, index1(-1) last, but index1(0) is undefined"
         )
@@ -864,17 +918,21 @@ class FutureMapping(DecisionEntity):
         return f"{base}{keys}"
 
 
-class FutureMapItem(Selector, FutureMapping):
+class FutureMapItem(
+    Selector[Features | Features2], FutureMapping[Features | Features2]
+):
     def __init__(
         self,
-        mapping: FutureMapping,
-        key: IntoValue | tuple[IntoValue, ...] | list[IntoValue],
+        mapping: FutureMapping[Features],
+        key: IntoValue[Features2]
+        | tuple[IntoValue[Features2], ...]
+        | list[IntoValue[Features2]],
     ) -> None:
         if not isinstance(key, tuple) and not isinstance(key, list):
             key = (key,)
         if isinstance(mapping, FutureMapItem):
             key = (*mapping._my_key, *key)
-            mapping = mapping.mapping
+            mapping = mapping._mapping
         key = tuple([Value.of(k) for k in key])
         # set both constructors to the same *args as both of them
         # set self._args. Thisway we know exactly what self._args will be
@@ -882,7 +940,7 @@ class FutureMapItem(Selector, FutureMapping):
         Selector.__init__(self, "mapitem", mapping, key)
 
     @property
-    def mapping(self) -> FutureMapping:
+    def _mapping(self):
         return self._args[0]
 
     @property
@@ -890,10 +948,10 @@ class FutureMapItem(Selector, FutureMapping):
         return self._args[1]
 
     def __repr__(self) -> str:
-        return self.mapping._format_item_repr(self._my_key)
+        return self._mapping._format_item_repr(self._my_key)
 
 
-class FutureViewMapping(FutureMapping):
+class FutureViewMapping(FutureMapping[Features]):
     @property
     def perspective(self):
         """The thing this view makes accessible"""
@@ -907,7 +965,7 @@ class FutureViewMapping(FutureMapping):
         self,
         kind: Literal["view"],
         perspective: Literal["keys", "values"],
-        mapping: FutureMapping,
+        mapping: FutureMapping[Features],
         /,
     ) -> None:
         super().__init__(kind, perspective, mapping)
@@ -918,15 +976,17 @@ class FutureViewMapping(FutureMapping):
     pass
 
 
-class FirstPatternCapture(FutureMapping):
-    def __init__(self, pattern: IntoTextValue, value: Value) -> None:
+class FirstPatternCapture(FutureMapping[Features | Features2]):
+    def __init__(
+        self, pattern: IntoTextValue[Features], value: Value[Features2]
+    ) -> None:
         super().__init__("first_capture", pattern, value)
 
     def __repr__(self) -> str:
         return f"{self._args[1]!r}.first_capture({self._args[0]}!r)"
 
 
-class NetworkRequest(FutureMapping):
+class NetworkRequest(FutureMapping[Features | Features2 | Features3]):
     """
     A network request to a specific server.
     The server's domain has to be a static string and must be explicitly
@@ -963,7 +1023,7 @@ class NetworkRequest(FutureMapping):
         self,
         *,
         server: str,
-        route: IntoTextValue,
+        route: IntoTextValue[Features],
         method: Literal["GET"],
         allowed_status: int | tuple[int, ...] = 200,
     ) -> None: ...
@@ -973,9 +1033,9 @@ class NetworkRequest(FutureMapping):
         self,
         *,
         server: str,
-        route: IntoTextValue,
+        route: IntoTextValue[Features],
         method: Literal["POST"],
-        json: dict[IntoValue, IntoValue] | None = None,
+        json: dict[IntoValue[Features2], IntoValue[Features3]] | None = None,
         allowed_status: int | tuple[int, ...] = 200,
     ) -> None: ...
 
@@ -983,9 +1043,9 @@ class NetworkRequest(FutureMapping):
         self,
         *,
         server: str,
-        route: IntoTextValue,
+        route: IntoTextValue[Features],
         method: Literal["GET", "POST"],
-        json: dict[IntoValue, IntoValue] | None = None,
+        json: dict[IntoValue[Features2], IntoValue[Features3]] | None = None,
         allowed_status: int | tuple[int, ...] = 200,
     ) -> None:
         super().__init__(
@@ -998,7 +1058,7 @@ class NetworkRequest(FutureMapping):
         )
 
 
-class _Data(FutureMapping):
+class _Data(FutureMapping[Features]):
     """
     :ref:`catchable-errors`
     -----------------------
@@ -1014,23 +1074,25 @@ class _Data(FutureMapping):
         )
 
     @typing.overload
-    def __getitem__(self, key: Literal["variables", "lists"]) -> FutureMapping: ...  # type: ignore
+    def __getitem__(
+        self, key: Literal["variables", "lists"]
+    ) -> FutureMapping[Features]: ...  # type: ignore
     @typing.overload
     def __getitem__(
         self, key: Literal["output", "input", "randoms"]
-    ) -> FutureArray: ...  # type: ignore
+    ) -> FutureArray[Features]: ...  # type: ignore
     @typing.overload
     def __getitem__(
-        self, key: tuple[Literal["variables", "lists"], IntoTextValue]
-    ) -> FutureMapping: ...  # type: ignore
+        self, key: tuple[Literal["variables", "lists"], IntoTextValue[Features]]
+    ) -> FutureMapping[Features]: ...  # type: ignore
     @typing.overload
     def __getitem__(
-        self, key: tuple[Literal["output", "input", "randoms"], IntoValue]
-    ) -> FutureMapping: ...  # type: ignore
+        self, key: tuple[Literal["output", "input", "randoms"], IntoValue[Features]]
+    ) -> FutureMapping[Features]: ...  # type: ignore
     @typing.overload
     def __getitem__(
-        self, key: tuple[Literal["lists"], IntoTextValue, IntoValue]
-    ) -> FutureMapping: ...  # type: ignore
+        self, key: tuple[Literal["lists"], IntoTextValue[Features], IntoValue[Features]]
+    ) -> FutureMapping[Features]: ...  # type: ignore
 
     def __getitem__(  # type: ignore
         self, key
@@ -1038,23 +1100,23 @@ class _Data(FutureMapping):
         return super().__getitem__(key)
 
     @property
-    def variables(self) -> FutureMapping:
+    def variables(self) -> FutureMapping[Features]:
         return self["variables"]
 
     @property
-    def lists(self) -> FutureMapping:
+    def lists(self) -> FutureMapping[Features]:
         return self["lists"]
 
     @property
-    def input(self) -> FutureArray:
+    def input(self) -> FutureArray[Features]:
         return self["input"]
 
     @property
-    def output(self) -> FutureArray:
+    def output(self) -> FutureArray[Features]:
         return self["output"]
 
     @property
-    def randoms(self) -> FutureArray:
+    def randoms(self) -> FutureArray[Features]:
         return self["randoms"]
 
     def _format_item_repr(self, key: tuple[Value, ...], base=None) -> str:
@@ -1081,14 +1143,14 @@ class _Data(FutureMapping):
         return "DATA"
 
 
-DATA = _Data()
+DATA: _Data[FS_read_rundata] = _Data()
 
 
-OUTPUT: FutureArray = DATA["output"]
+OUTPUT: FutureArray[FS_read_rundata] = DATA["output"]
 """:class:`FutureArray` that represents the output a submission produced during the current test"""
 
-INPUT: FutureArray = DATA["input"]
+INPUT: FutureArray[FS_read_rundata] = DATA["input"]
 """:class:`FutureArray` that represents the output a submission got during the current test"""
 
-RANDOMS: FutureArray = DATA["randoms"]
+RANDOMS: FutureArray[FS_read_rundata] = DATA["randoms"]
 """:class:`FutureArray` that represents the random numbers a submission requested and got during the current test"""

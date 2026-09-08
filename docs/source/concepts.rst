@@ -167,12 +167,19 @@ Actions
 In addition to specifying if a test should pass or fail, :ref:`concept-criteria` can be used 
 to trigger *actions* if there conditions are satisfied:
 
-- :code:`send_msg(text, severity, level)`: generating a message that will be displayed
-  to the student who has submitted a file for checking.
-- :code:`pass_this_test_immediatly(explaination)`: stop further checking of :ref:`concept-criteria`
+- generate a message that will be displayed
+  to the student who has submitted a file for checking:
+
+  - :func:`send_message<bast3st.actions.send_message>`
+  - :func:`send_info<bast3st.actions.send_info>`
+  - :func:`send_warning<bast3st.actions.send_warning>`
+  - :func:`send_error<bast3st.actions.send_error>`
+
+- :any:`pass_this_test_immediatly`: stop further checking of :ref:`concept-criteria`
   and mark the currently checked test as *passed*.
-- :code:`fail_this_test_immediatly(explaination)`: stop further checking of :ref:`concept-criteria`
+- :any:`fail_this_test_immediatly`: stop further checking of :ref:`concept-criteria`
   and mark the currently checked test as *failed*.
+- :func:`if_then_else <bast3st.decisions.if_then_else>`: select one of two actions depending on the acceptance state of a criterion
 - :code:`set_flag(key, value)`: *experimental idea*
 
   .. note:: `set_flag` could be a way to pass arbitrary data to whoever asked the server to

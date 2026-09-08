@@ -6,6 +6,6 @@ Decision evaluation
    :member-order: groupwise
    :undoc-members:
    :show-inheritance:
-   :exclude-members: FirstPatternCapture, FutureViewMapping, Contained, Action, ValueCatchAction, CriterionCatchAction, SerCrit, SerVal, LitValue
+   :exclude-members: FirstPatternCapture, FutureViewMapping, Contained, Action, SerCrit, SerVal, LitValue
 
 

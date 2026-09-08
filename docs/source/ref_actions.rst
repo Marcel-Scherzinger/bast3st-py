@@ -1,12 +1,11 @@
 Actions
 =======
 
+.. autoclass:: bast3st.decisions.Action
 .. automodule:: bast3st.actions
    :members:
    :member-order: alphabetical
    :undoc-members:
    :show-inheritance:
+   :exclude-members: SendMsg
 
-.. autoclass:: bast3st.decisions.Action
-.. autotype:: bast3st.decisions.ValueCatchAction
-.. autotype:: bast3st.decisions.CriterionCatchAction

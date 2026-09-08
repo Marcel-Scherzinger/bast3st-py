@@ -39,6 +39,7 @@
       in {
         devShells.default = pkgs.mkShell {
           packages = [
+            pkgs.python314Packages.mypy
             pythonEnv
             pkgs.just
             pkgs.gnumake
@@ -68,7 +69,12 @@
         packages = let
           python = pkgs.${pythonAttr};
         in {
-          bast3st-lib = python.pkgs.buildPythonPackage (project.renderers.buildPythonPackage {inherit python;});
+          bast3st-lib = python.pkgs.buildPythonPackage ({
+              pythonImportsCheck = ["bast3st"];
+            }
+            // project.renderers.buildPythonPackage {
+              inherit python;
+            });
 
           default = self'.packages.bast3st-full;
 
@@ -80,6 +86,8 @@
               src = ./.;
 
               pyproject = true;
+
+              pythonImportsCheck = ["bast3st"];
 
               build-system = with python.pkgs; [
                 setuptools
@@ -116,7 +124,7 @@
 
             buildPhase = ''
               mkdir -p $out/share/doc
-              cp -r ${self'.packages.bast3st-only-app}/* $out/
+              cp -r ${self'.packages.bast3st-lib}/* $out/
               cp -r ${self'.packages.docs}/share/doc/* $out/share/doc/
             '';
             installPhase = '''';
