@@ -1,4 +1,5 @@
 from __future__ import annotations
+import json
 from typing import Literal, Mapping, Self
 
 from bast3st.decisions import Action, Criterion
@@ -13,11 +14,21 @@ from bast3st.features import (
     PermittedFEAT_CondTestActCrit,
     PermittedFEAT_PassTestCrit,
 )
+from bast3st.ser import DecisionSerializer
 
 
 class SpecEntity:
     def __init__(self) -> None:
         self._if_then_actions: list = []
+
+    def _hooks_to_json_like(self, ser):
+        hooks = {}
+        for order, (criterion, action) in self._if_then_actions:
+            group = hooks.get(order, [])
+            group.append([ser.register(criterion), ser.register(action)])
+
+            hooks[order] = group
+        return hooks
 
     def _ar(self, *args, **kwargs) -> str:
         """
@@ -44,9 +55,11 @@ class Bast3StSpec(SpecEntity):
         super().__init__()
         self._title = title
         self._description = description
+        self._categories = []
 
     def new_category(self, title: str, *, description: str | None = None) -> Category:
-        return Category(title=title, description=description)
+        self._categories.append(Category(title=title, description=description))
+        return self._categories[-1]
 
     def if_criterion_then(
         self,
@@ -61,6 +74,20 @@ class Bast3StSpec(SpecEntity):
 
     def __repr__(self) -> str:
         return self._repr(title=self._title, description=self._description)
+
+    def to_json(self, *, indent: int | None = None):
+        ser = DecisionSerializer()
+        base = self._to_json(ser)
+        base["nodes"] = ser._final
+        return json.dumps(base, indent=indent)
+
+    def _to_json(self, ser):
+        return dict(
+            title=self._title,
+            description=self._description,
+            categories=[x._to_json(ser) for x in self._categories],
+            hooks=self._hooks_to_json_like(ser),
+        )
 
     pass
 
@@ -87,15 +114,18 @@ class Category(SpecEntity):
         initial_variables: Mapping[str, str | int | float] | None = None,
         initial_lists: Mapping[str, list[str | int | float]] | None = None,
     ) -> MainTest:
-        return MainTest(
-            title=title,
-            criterion=criterion,
-            input=input,
-            random_generation=random_generation,
-            initial_variables=initial_variables,
-            initial_lists=initial_lists,
-            predefined_randoms=predefined_randoms,
+        self._maintests.append(
+            MainTest(
+                title=title,
+                criterion=criterion,
+                input=input,
+                random_generation=random_generation,
+                initial_variables=initial_variables,
+                initial_lists=initial_lists,
+                predefined_randoms=predefined_randoms,
+            )
         )
+        return self._maintests[-1]
 
     def if_criterion_then(
         self,
@@ -108,6 +138,14 @@ class Category(SpecEntity):
 
     def __repr__(self) -> str:
         return self._repr(title=self._title, description=self._description)
+
+    def _to_json(self, ser):
+        return dict(
+            title=self._title,
+            description=self._description,
+            tests=[x._to_json(ser) for x in self._maintests],
+            hooks=self._hooks_to_json_like(ser),
+        )
 
     pass
 
@@ -143,6 +181,18 @@ class AnyTest(SpecEntity):
             initial_variables=self._initial_variables,
             initial_lists=self._initial_lists,
         )
+
+    def _to_json(self, ser):
+        base = dict(
+            title=self._title,
+            criterion=ser.register(self._criterion),
+            input=self._input,
+            random_generation=self._random_generation,
+            initial_variables=self._initial_variables,
+            initial_lists=self._initial_lists,
+            hooks=self._hooks_to_json_like(ser),
+        )
+        return {k: v for (k, v) in base.items() if v is not None}
 
 
 class MainTest(AnyTest):
@@ -202,6 +252,12 @@ class MainTest(AnyTest):
     ) -> Self:
         self._if_then_actions.append((order, (criterion, action)))
         return self
+
+    def _to_json(self, ser) -> dict:
+        return dict(
+            **super()._to_json(ser),
+            alternatives=[a._to_json(ser) for a in self._alternatives],
+        )
 
 
 class AlternativeTest(AnyTest):

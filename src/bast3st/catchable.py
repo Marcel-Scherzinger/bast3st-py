@@ -68,3 +68,6 @@ class err(enum.Flag):
     - :data:`network`
     - :data:`regex`
     """
+
+    def _to_json_able(self, ser):
+        return [x.name for x in list(self)]

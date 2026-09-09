@@ -7,6 +7,7 @@ import itertools
 import typing
 import copy
 
+from bast3st._general import MAX_INLINE_STR_LEN
 from bast3st.catchable import err
 from bast3st.features import (
     FS_read_rundata,
@@ -18,12 +19,24 @@ from bast3st.features import (
 
 type StdArrayScopeT = Literal["ior", "list"]
 type ArrayScopeT = Literal["arrayview"] | StdArrayScopeT
-type MapScopeT = Literal["network", "first_capture", "data", "mapitem", "view"]
+type MapScopeT = Literal[
+    "network",
+    "first-capture",
+    "read-input",
+    "read-output",
+    "read-lists",
+    "read-randoms",
+    "read-variables",
+    "read-param",
+    "read-blockcount",
+    "mapitem",
+    "view",
+]
 type RelationT = Literal["==", "!=", "<=", ">=", "<", ">"]
 """A comparison operator string to specify the desired relation"""
 
 type SelectorOpcodeT = Literal["var", "arrayitem", "arrayprop", "mapitem", "mapprop"]
-type ContainOpcodeT = Literal["contain_onlynum", "contain_num", "contain_text"]
+type ContainOpcodeT = Literal["contain-onlynum", "contain-num", "contain-text"]
 
 
 NO_BOOL_ON_CRITERION = "A criterion shouldn't be used in Python boolean expressions, you can't use Pythons and, or and not keywords on it, but & (all_of(...)), | (any_of(...)) and ~ (.negated) work!"
@@ -163,7 +176,7 @@ class Value(DecisionEntity[Features], abc.ABC):
         return Contained(
             sub=val,
             sup=self,
-            mode="contain_text",
+            mode="contain-text",
             failure_explaination=failure_explaination,
         )
 
@@ -176,7 +189,7 @@ class Value(DecisionEntity[Features], abc.ABC):
         return Contained(
             sub=val,
             sup=self,
-            mode="contain_onlynum",
+            mode="contain-onlynum",
             failure_explaination=failure_explaination,
         )
 
@@ -187,7 +200,7 @@ class Value(DecisionEntity[Features], abc.ABC):
     ) -> Criterion[Features | Features2 | Features3]:
         """If this contains a specific sequence of fragments, with arbitraty gaps inbetween"""
         return SerCrit(
-            "contain_wgap",
+            "contain-wgap",
             *val,
             sup=self,
             failure_explaination=failure_explaination,
@@ -245,7 +258,7 @@ class Value(DecisionEntity[Features], abc.ABC):
         return Contained(
             sub=val,
             sup=self,
-            mode="contain_num",
+            mode="contain-num",
             failure_explaination=failure_explaination,
         )
 
@@ -258,7 +271,7 @@ class Value(DecisionEntity[Features], abc.ABC):
         return Contained(
             sub=self,
             sup=val,
-            mode="contain_text",
+            mode="contain-text",
             failure_explaination=failure_explaination,
         )
 
@@ -348,6 +361,11 @@ class LitValue(Value):
         super().__init__()
         self._val = val
 
+    def _to_json_able(self, _ser):
+        if isinstance(self._val, str) and len(self._val) <= MAX_INLINE_STR_LEN:
+            return self._val
+        return dict(op="lit", v=self._val)
+
     def __repr__(self) -> str:
         return repr(self._val)
 
@@ -388,16 +406,24 @@ class SerVal(Value[Features]):
     def _ar(self, *args, **kwargs) -> str:
         return super()._ar(*self.args, *args, **self.kwargs, **kwargs)
 
+    def _to_json_able(self, ser):
+        return dict(
+            op=self.opcode,
+            a=ser.register(self.args),
+            **{k: ser.register(v) for (k, v) in self.kwargs.items()},
+        )
+
     def __repr__(self) -> str:
+        opcode = self.opcode.replace("-", "_")
         if self._syntax == "meth":
-            return f"{self.args[0]!r}.{self.opcode}({super()._ar(*self.args[1:], **self.kwargs)})"
+            return f"{self.args[0]!r}.{opcode}({super()._ar(*self.args[1:], **self.kwargs)})"
         if self._syntax == "prop":
             extra = super()._ar(*self.args[1:], **self.kwargs)
             if len(extra) > 0:
-                return f"{self.args[0]!r}.{self.opcode}({extra})"
+                return f"{self.args[0]!r}.{opcode}({extra})"
             else:
-                return f"{self.args[0]!r}.{self.opcode}"
-        return f"{self.opcode}({self._ar()})"
+                return f"{self.args[0]!r}.{opcode}"
+        return f"{opcode}({self._ar()})"
 
     def _with_syntax(self, syntax: typing.Literal["func", "meth", "prop"]) -> SerVal:
         self._syntax = syntax
@@ -416,19 +442,19 @@ class TransformSingleNoParam(Transformation[Features]):
         return self.on(value)
 
 
-to_upper = TransformSingleNoParam[Any]("to_upper")
+to_upper = TransformSingleNoParam[Any]("to-upper")
 """:class:`Transformation` converting a value to uppercase"""
 
-to_lower = TransformSingleNoParam[Any]("to_lower")
+to_lower = TransformSingleNoParam[Any]("to-lower")
 """:class:`Transformation` converting a value to lowercase"""
 
 trim = TransformSingleNoParam[Any]("trim")
 """:class:`Transformation` removing all whitespace from start and end of the stringified value"""
 
-trim_start = TransformSingleNoParam[Any]("trim_start")
+trim_start = TransformSingleNoParam[Any]("trim-start")
 """:class:`Transformation` removing all whitespace from the start of the stringified value"""
 
-trim_end = TransformSingleNoParam[Any]("trim_end")
+trim_end = TransformSingleNoParam[Any]("trim-end")
 """:class:`Transformation` removing all whitespace from the end of the stringified value"""
 
 
@@ -476,7 +502,7 @@ class Criterion(DecisionEntity[Features]):
     ) -> Criterion[Features | Features2]:
         other: Criterion[Features | Features2] = copy.deepcopy(self)
         other.failure_explaination = Value[Features | Features2].of(val)
-        return self
+        return other
 
     def _ar(self, *args, **kwargs) -> str:
         extend: dict = {}
@@ -551,6 +577,14 @@ class SerCrit(Criterion[Features]):
 
     def __repr__(self) -> str:
         return f"{self._consname}({self._ar()})"
+
+    def _to_json_able(self, ser):
+        return {
+            "op": self.opcode,
+            "a": ser.register(self._args),
+            "fexp": ser.register(self.failure_explaination),
+            **{k: ser.register(v) for (k, v) in self._kwargs.items()},
+        }
 
 
 @typing.overload
@@ -651,13 +685,13 @@ class Contained(SerCrit[Features | Features2 | Features3]):
         *,
         sub: IntoValue[Features],
         sup: IntoTextValue[Features2],
-        mode: ContainOpcodeT = "contain_text",
+        mode: ContainOpcodeT = "contain-text",
         failure_explaination: IntoTextValue[Features3] | None = None,
     ) -> None:
         super().__init__(
             mode,
-            Value.of(sub),
-            Value.of(sup),
+            sub=Value.of(sub),
+            sup=Value.of(sup),
             failure_explaination=failure_explaination,
         )
 
@@ -667,11 +701,11 @@ class Contained(SerCrit[Features | Features2 | Features3]):
 
     @property
     def sub(self) -> Value[Features]:
-        return self._args[0]
+        return self._kwargs["sub"]
 
     @property
     def sup(self) -> Value[Features2]:
-        return self._args[1]
+        return self._kwargs["sup"]
 
     def __repr__(self) -> str:
         kw = (
@@ -679,11 +713,11 @@ class Contained(SerCrit[Features | Features2 | Features3]):
             if self.failure_explaination is not None
             else ""
         )
-        if self.mode == "contain_text":
+        if self.mode == "contain-text":
             return f"{self.sup!r}.contains_text({Criterion._ar(self, self.sub)}{kw})"
-        if self.mode == "contain_num":
+        if self.mode == "contain-num":
             return f"{self.sup!r}.contains_this_number({Criterion._ar(self, self.sub)}{kw})"
-        if self.mode == "contain_onlynum":
+        if self.mode == "contain-onlynum":
             return f"{self.sup!r}.contains_only_this_number({Criterion._ar(self, self.sub)}{kw})"
         raise TypeError(f"Unexpected contain mode: {self.mode}")
 
@@ -822,11 +856,11 @@ class FutureArray(typing.Protocol[Features]):
 
 
 def LIST(name: str) -> FutureArray[FS_read_rundata]:
-    return DATA["lists", name]
+    return LISTS[name]
 
 
 def VAR(name: str) -> FutureVariable[FS_read_rundata]:
-    return DATA["variables", name]  # type: ignore
+    return VARIABLES[name]  # type: ignore
 
 
 class FutureMapping(DecisionEntity[Features]):
@@ -840,6 +874,13 @@ class FutureMapping(DecisionEntity[Features]):
         self._args = args
         self._kwargs = kwargs
         self._definitly_array = False
+
+    def _to_json_able(self, ser):
+        return dict(
+            op=self._kind,
+            a=ser.register(self._args),
+            **{k: ser.register(v) for (k, v) in self._kwargs.items()},
+        )
 
     @property
     def kind(self) -> MapScopeT:
@@ -939,6 +980,11 @@ class FutureMapItem(
         FutureMapping.__init__(self, "mapitem", mapping, key)
         Selector.__init__(self, "mapitem", mapping, key)
 
+    def _to_json_able(self, ser):
+        return dict(
+            op="mapitem", m=ser.register(self._mapping), k=ser.register(self._my_key)
+        )
+
     @property
     def _mapping(self):
         return self._args[0]
@@ -980,7 +1026,7 @@ class FirstPatternCapture(FutureMapping[Features | Features2]):
     def __init__(
         self, pattern: IntoTextValue[Features], value: Value[Features2]
     ) -> None:
-        super().__init__("first_capture", pattern, value)
+        super().__init__("first-capture", pattern, value)
 
     def __repr__(self) -> str:
         return f"{self._args[1]!r}.first_capture({self._args[0]}!r)"
@@ -1035,7 +1081,9 @@ class NetworkRequest(FutureMapping[Features | Features2 | Features3]):
         server: str,
         route: IntoTextValue[Features],
         method: Literal["POST"],
-        json: dict[IntoValue[Features2], IntoValue[Features3]] | None = None,
+        json: dict[str, IntoValue[Features3]]
+        | list[tuple[IntoValue[Features2], IntoValue[Features3]]]
+        | None = None,
         allowed_status: int | tuple[int, ...] = 200,
     ) -> None: ...
 
@@ -1045,9 +1093,16 @@ class NetworkRequest(FutureMapping[Features | Features2 | Features3]):
         server: str,
         route: IntoTextValue[Features],
         method: Literal["GET", "POST"],
-        json: dict[IntoValue[Features2], IntoValue[Features3]] | None = None,
+        json: dict[str, IntoValue[Features3]]
+        | list[tuple[IntoValue[Features2], IntoValue[Features3]]]
+        | None = None,
         allowed_status: int | tuple[int, ...] = 200,
     ) -> None:
+        if isinstance(json, dict):
+            json = [(k, Value.of(v)) for (k, v) in json.items()]
+        elif isinstance(json, list):
+            json = [(Value.of(k), Value.of(v)) for (k, v) in json]
+
         super().__init__(
             "network",
             server=server,
@@ -1068,105 +1123,35 @@ class _Data(FutureMapping[Features]):
 
     def __init__(
         self,
+        section: Literal[
+            "input", "output", "randoms", "blockcount", "param", "lists", "variables"
+        ],
     ) -> None:
         super().__init__(
-            "data",
+            "read-" + section,
         )
-
-    @typing.overload
-    def __getitem__(
-        self, key: Literal["blockcount", "param"]
-    ) -> FutureMapping[Any]: ...  # type: ignore
-    @typing.overload
-    def __getitem__(
-        self, key: Literal["variables", "lists"]
-    ) -> FutureMapping[Features]: ...  # type: ignore
-    @typing.overload
-    def __getitem__(
-        self, key: Literal["output", "input", "randoms"]
-    ) -> FutureArray[Features]: ...  # type: ignore
-    @typing.overload
-    def __getitem__(
-        self, key: tuple[Literal["variables", "lists"], IntoTextValue[Features]]
-    ) -> FutureMapping[Features]: ...  # type: ignore
-    @typing.overload
-    def __getitem__(
-        self, key: tuple[Literal["output", "input", "randoms"], IntoValue[Features]]
-    ) -> FutureMapping[Features]: ...  # type: ignore
-    @typing.overload
-    def __getitem__(
-        self, key: tuple[Literal["lists"], IntoTextValue[Features], IntoValue[Features]]
-    ) -> FutureMapping[Features]: ...  # type: ignore
+        self._section = section
 
     def __getitem__(  # type: ignore
         self, key
     ) -> FutureMapItem:
         return super().__getitem__(key)
 
-    @property
-    def variables(self) -> FutureMapping[Features]:
-        return self["variables"]
-
-    @property
-    def lists(self) -> FutureMapping[Features]:
-        return self["lists"]
-
-    @property
-    def input(self) -> FutureArray[Features]:
-        return self["input"]
-
-    @property
-    def output(self) -> FutureArray[Features]:
-        return self["output"]
-
-    @property
-    def randoms(self) -> FutureArray[Features]:
-        return self["randoms"]
-
-    @property
-    def blockcount(self) -> FutureMapping[Any]:
-        return self["blockcount"]
-
-    @property
-    def param(self) -> FutureMapping[Any]:
-        return self["param"]
-
-    def _format_item_repr(self, key: tuple[Value, ...], base=None) -> str:
-        if (
-            len(key) >= 1
-            and isinstance(key[0], LitValue)
-            and isinstance(top := key[0]._val, str)
-        ):
-            if len(key) >= 2:
-                if top == "lists":
-                    return f"LIST({key[1]!r})" + super()._format_item_repr(
-                        key[2:], base=""
-                    )
-                if top == "variables":
-                    return f"VAR({key[1]!r})" + super()._format_item_repr(
-                        key[2:], base=""
-                    )
-            if top in ("input", "output", "randoms"):
-                return top.upper() + super()._format_item_repr(key[1:], base="")
-
-        return super()._format_item_repr(key, base=base)
-
     def __repr__(self) -> str:
-        return "DATA"
+        return self._section.upper()
 
 
-DATA: _Data[FS_read_rundata] = _Data()
-
-
-OUTPUT: FutureArray[FS_read_rundata] = DATA["output"]
+OUTPUT: FutureArray[FS_read_rundata] = _Data("output")
 """:class:`FutureArray` that represents the output a submission produced during the current test"""
 
-INPUT: FutureArray[FS_read_rundata] = DATA["input"]
+INPUT: FutureArray[FS_read_rundata] = _Data("input")
 """:class:`FutureArray` that represents the output a submission got during the current test"""
 
-RANDOMS: FutureArray[FS_read_rundata] = DATA["randoms"]
+RANDOMS: FutureArray[FS_read_rundata] = _Data("randoms")
 """:class:`FutureArray` that represents the random numbers a submission requested and got during the current test"""
 
+LISTS: FutureMapping[FS_read_rundata] = _Data("lists")
+VARIABLES: FutureArray[FS_read_rundata] = _Data("variables")
 
-BLOCKCOUNT: FutureMapping[Any] = DATA.blockcount
-PARAM: FutureMapping[Any] = DATA.param
+BLOCKCOUNT: FutureMapping[Any] = _Data("blockcount")
+PARAM: FutureMapping[Any] = _Data("param")

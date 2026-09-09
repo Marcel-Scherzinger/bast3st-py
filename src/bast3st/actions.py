@@ -42,24 +42,31 @@ class SerAct(Action[Features]):
         self._syntax = syntax
         return self
 
+    def _to_json_able(self, ser):
+        return dict(
+            op=self.opcode,
+            a=ser.register(self.args),
+            **{k: ser.register(v) for (k, v) in self.kwargs.items()},
+        )
+
 
 type LevelT = Literal["maintest", "alttest", "thistest", "category", "spec"]
 
 
-class SendMsg(Action[Features]):
+class SendMsg(SerAct[Features]):
     def __init__(
         self,
         text: IntoTextValue[Features],
         level: LevelT | None,
         severity: MsgSeverityT,
     ) -> None:
-        super().__init__()
+        super().__init__("send-msg", t=text, l=level, s=severity)
         self.text = Value.of(text)
         self.level = level
         self.severity = severity
 
     def __repr__(self) -> str:
-        return f"send_{self.severity}({self._ar(self.text, level=self.level)})"
+        return f"send_{self.severity}({Action._ar(self, self.text, level=self.level)})"
 
 
 @overload
