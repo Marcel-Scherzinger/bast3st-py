@@ -57,3 +57,6 @@ for first in range(-20, 20):
                 input=[first, second],
                 criterion=criterion_gt,
             )
+
+with open("examples/compare.json", "w", encoding="utf8") as f:
+    f.write(spec.to_json(indent=2))

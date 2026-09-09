@@ -23,3 +23,7 @@ def add_category(title, names: list[str]):
 
 # Nur Vornamen oder Namen ohne Leer- und Sonderzeichen
 add_category("Vornamen und Namen ohne Sonderzeichen", ["Alan", "Albert"])
+
+
+with open("examples/hello.json", "w", encoding="utf8") as f:
+    f.write(spec.to_json(indent=2))

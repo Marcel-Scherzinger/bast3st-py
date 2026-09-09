@@ -14,3 +14,6 @@ perfect_output = OUTPUT.last.contains_only_this_number(
 cat = spec.new_category("1 bis 5")
 cat.new_test("1 bis 5", criterion=perfect_output)
 print(spec)
+
+with open("examples/fixed_loop.json", "w", encoding="utf8") as f:
+    f.write(spec.to_json(indent=2))

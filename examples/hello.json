@@ -1,0 +1,117 @@
+{
+  "title": "Begr\u00fc\u00dfung eines gegebenen Namens",
+  "categories": [
+    {
+      "title": "Vornamen und Namen ohne Sonderzeichen",
+      "tests": [
+        {
+          "title": "Begr\u00fc\u00dfe Alan",
+          "criterion": 11,
+          "input": [
+            "Alan"
+          ]
+        },
+        {
+          "title": "Begr\u00fc\u00dfe Albert",
+          "criterion": 11,
+          "input": [
+            "Albert"
+          ]
+        }
+      ]
+    }
+  ],
+  "hooks": {
+    "before-all-categories": [
+      [
+        15,
+        17
+      ]
+    ]
+  },
+  "nodes": {
+    "1": "Wie w\u00e4re es mit folgendem: Guten Tag ",
+    "2": {
+      "op": "read-input"
+    },
+    "3": {
+      "op": "view",
+      "a": [
+        "values",
+        2
+      ]
+    },
+    "4": {
+      "op": "lit",
+      "v": 0
+    },
+    "5": {
+      "op": "mapitem",
+      "m": 3,
+      "k": [
+        4
+      ]
+    },
+    "6": {
+      "op": "concat",
+      "a": [
+        1,
+        5
+      ]
+    },
+    "7": {
+      "op": "read-output"
+    },
+    "8": {
+      "op": "view",
+      "a": [
+        "values",
+        7
+      ]
+    },
+    "9": {
+      "op": "lit",
+      "v": -1
+    },
+    "10": {
+      "op": "mapitem",
+      "m": 8,
+      "k": [
+        9
+      ]
+    },
+    "11": {
+      "op": "contain-text",
+      "fexp": 6,
+      "sub": 5,
+      "sup": 10
+    },
+    "12": {
+      "op": "read-blockcount"
+    },
+    "13": {
+      "op": "mapitem",
+      "m": 12,
+      "k": [
+        "total"
+      ]
+    },
+    "14": {
+      "op": "lit",
+      "v": 20
+    },
+    "15": {
+      "op": ">",
+      "a": [
+        13,
+        14
+      ]
+    },
+    "16": "Sie verwenden zu viele Bl\u00f6cke",
+    "17": {
+      "op": "send-msg",
+      "t": 16,
+      "s": "error"
+    }
+  }
+}

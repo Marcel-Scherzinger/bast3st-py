@@ -1,0 +1,90 @@
+{
+  "title": "Ausgabe des Doppelten der Summe der Quadrate von 1 bis 5",
+  "categories": [
+    {
+      "title": "1 bis 5",
+      "tests": [
+        {
+          "title": "1 bis 5",
+          "criterion": 8
+        }
+      ]
+    }
+  ],
+  "hooks": {
+    "before-all-categories": [
+      [
+        12,
+        14
+      ]
+    ]
+  },
+  "nodes": {
+    "1": "Die korrekte Summe ist ",
+    "2": {
+      "op": "lit",
+      "v": 110
+    },
+    "3": {
+      "op": "concat",
+      "a": [
+        1,
+        2
+      ]
+    },
+    "4": {
+      "op": "read-output"
+    },
+    "5": {
+      "op": "view",
+      "a": [
+        "values",
+        4
+      ]
+    },
+    "6": {
+      "op": "lit",
+      "v": -1
+    },
+    "7": {
+      "op": "mapitem",
+      "m": 5,
+      "k": [
+        6
+      ]
+    },
+    "8": {
+      "op": "contain-onlynum",
+      "fexp": 3,
+      "sub": 2,
+      "sup": 7
+    },
+    "9": {
+      "op": "read-blockcount"
+    },
+    "10": {
+      "op": "mapitem",
+      "m": 9,
+      "k": [
+        "total"
+      ]
+    },
+    "11": {
+      "op": "lit",
+      "v": 30
+    },
+    "12": {
+      "op": ">",
+      "a": [
+        10,
+        11
+      ]
+    },
+    "13": "Sie verwenden zu viele Bl\u00f6cke",
+    "14": {
+      "op": "send-msg",
+      "t": 13,
+      "s": "error"
+    }
+  }
+}

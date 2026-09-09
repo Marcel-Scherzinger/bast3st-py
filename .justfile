@@ -3,4 +3,6 @@ watch-docs:
 
 docs:
     cd docs && make clean html
-    xdg-open docs/build/html/index.html
+
+examples:
+    make clean examples

@@ -105,12 +105,18 @@ class Bast3StSpec(SpecEntity):
         return json.dumps(base, indent=indent)
 
     def _to_json(self, ser):
-        return dict(
+        base: dict = dict(
             title=self._title,
-            description=self._description,
-            categories=[x._to_json(ser) for x in self._categories],
-            hooks=self._hooks_to_json_like(ser),
         )
+        if self._description is not None:
+            base["description"] = self._description
+        if len(self._categories) > 0:
+            base["categories"] = [x._to_json(ser) for x in self._categories]
+        hooks = self._hooks_to_json_like(ser)
+        if len(hooks) > 0:
+            base["hooks"] = hooks
+
+        return base
 
     pass
 
@@ -163,12 +169,17 @@ class Category(SpecEntity):
         return self._repr(title=self._title, description=self._description)
 
     def _to_json(self, ser):
-        return dict(
+        base = dict(
             title=self._title,
-            description=self._description,
-            tests=[x._to_json(ser) for x in self._maintests],
-            hooks=self._hooks_to_json_like(ser),
         )
+        if self._description is not None:
+            base["description"] = self._description
+        if len(self._maintests) > 0:
+            base["tests"] = [x._to_json(ser) for x in self._maintests]
+        hooks = self._hooks_to_json_like(ser)
+        if len(hooks) > 0:
+            base["hooks"] = hooks
+        return base
 
     pass
 
@@ -215,7 +226,11 @@ class AnyTest(SpecEntity):
             initial_lists=self._initial_lists,
             hooks=self._hooks_to_json_like(ser),
         )
-        return {k: v for (k, v) in base.items() if v is not None}
+        return {
+            k: v
+            for (k, v) in base.items()
+            if v is not None and not (isinstance(v, (list, dict)) and len(v) == 0)
+        }
 
 
 class MainTest(AnyTest):
@@ -277,10 +292,10 @@ class MainTest(AnyTest):
         return self
 
     def _to_json(self, ser) -> dict:
-        return dict(
-            **super()._to_json(ser),
-            alternatives=[a._to_json(ser) for a in self._alternatives],
-        )
+        base: dict = super()._to_json(ser)
+        if len(self._alternatives) > 0:
+            base["alternatives"] = ([a._to_json(ser) for a in self._alternatives],)
+        return base
 
 
 class AlternativeTest(AnyTest):
