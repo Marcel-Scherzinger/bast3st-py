@@ -680,11 +680,11 @@ class Contained(SerCrit[Features | Features2 | Features3]):
             else ""
         )
         if self.mode == "contain_text":
-            return f"{self.sup!r}.contains_text({self._ar(self.sub)}{kw})"
+            return f"{self.sup!r}.contains_text({Criterion._ar(self, self.sub)}{kw})"
         if self.mode == "contain_num":
-            return f"{self.sup!r}.contains_this_number({self._ar(self.sub)}{kw})"
+            return f"{self.sup!r}.contains_this_number({Criterion._ar(self, self.sub)}{kw})"
         if self.mode == "contain_onlynum":
-            return f"{self.sup!r}.contains_only_this_number({self._ar(self.sub)}{kw})"
+            return f"{self.sup!r}.contains_only_this_number({Criterion._ar(self, self.sub)}{kw})"
         raise TypeError(f"Unexpected contain mode: {self.mode}")
 
 

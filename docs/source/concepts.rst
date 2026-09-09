@@ -180,11 +180,86 @@ to trigger *actions* if there conditions are satisfied:
 - :any:`fail_this_test_immediatly`: stop further checking of :ref:`concept-criteria`
   and mark the currently checked test as *failed*.
 - :func:`if_then_else <bast3st.decisions.if_then_else>`: select one of two actions depending on the acceptance state of a criterion
-- :code:`set_flag(key, value)`: *experimental idea*
+- :func:`set_flag(key, value)<bast3st.actions.set_flag>`:
 
   .. note:: `set_flag` could be a way to pass arbitrary data to whoever asked the server to
      evaluate a submission. The flags from one action could maybe also be read from within
      other criteria, **but never in the criterion where it was set** as this would imply
      dependencies on the execution order of a single decision.
 
-    
+
+Test specification
+==================
+
+The top-level part of a specification is :class:`Bast3StSpec<bast3st.spec.Bast3StSpec>` which contains all categories and meta information about the point of the whole exercise.
+A :class:`Bast3StSpec<bast3st.spec.Bast3StSpec>` object can contain
+multiple :class:`Category<bast3st.spec.Category>` objects that group
+tests by logical relation.
+Each :class:`Category<bast3st.spec.Category>` has multiple
+:class:`MainTest<bast3st.spec.MainTest>` instances each of them being
+able to hold :class:`AlternativeTest<bast3st.spec.AlternativeTest>`
+objects. These objects
+(aside from :class:`Bast3StSpec<bast3st.spec.Bast3StSpec>`)
+should mostly not be instantiated directly but through special
+functions:
+
+- :func:`Bast3StSpec::new_category<bast3st.spec.Bast3StSpec.new_category>`
+- :func:`Category::new_test<bast3st.spec.Category.new_test>`
+- :func:`MainTest::new_alternative_test<bast3st.spec.MainTest.new_alternative_test>`
+
+See the functions for required arguments. All levels support extra hook
+conditions to run actions if some criterion is suffied:
+
+- :func:`Bast3StSpec::if_criterion_then<bast3st.spec.Bast3StSpec.if_criterion_then>`
+- :func:`Category::if_criterion_then<bast3st.spec.Category.if_criterion_then>`
+- :func:`MainTest::if_criterion_then<bast3st.spec.MainTest.if_criterion_then>`
+- :func:`AlternativeTest::if_criterion_then<bast3st.spec.AlternativeTest.if_criterion_then>`
+
+Each of those functions specifies an *order* which decides when the
+condition should be checked. The following shows a typical flow:
+
+1. *run hooks of* :class:`specification<bast3st.spec.Bast3StSpec>`
+   *that should be run before all categories*
+2. process each :class:`Category<bast3st.spec.Category>`:
+
+    3. *run hooks of* :class:`Category<bast3st.spec.Category>`
+       *that should be run before all tests of this category*
+    4. process each :class:`MainTest<bast3st.spec.MainTest>`:
+
+        5. *run hooks of* :class:`MainTest<bast3st.spec.MainTest>`
+           *that should be run before the actual test*
+        6. evaluate the main test's :class:`Criterion<bast3st.decisions.Criterion>`
+           to decide if the test should be passed 
+        7. *run hooks of* :class:`MainTest<bast3st.spec.MainTest>`
+           *that should be run after the main test but before the*
+           *alternative tests*
+        8. **If the main test failed**, process each
+           :class:`AlternativeTest<bast3st.spec.AlternativeTest>`
+           in order until one passes or all were tried:
+            
+            9. *run hooks of*
+               :class:`AlternativeTest<bast3st.spec.AlternativeTest>`
+               *that should be run before the alternative test*
+            10. evaluate the alternative test's :class:`Criterion<bast3st.decisions.Criterion>`
+                to decide if the test should be passed.
+                (if so, run 11 but proceed to 12 without trying 8 again)
+            11. *run hooks of*
+                :class:`AlternativeTest<bast3st.spec.AlternativeTest>`
+                *that should be run before the alternative test*
+
+        12. *run hooks of* :class:`MainTest<bast3st.spec.MainTest>`
+            *that should be run after the main test and after the*
+            *alternative tests*
+
+    13. *run hooks of* :class:`Category<bast3st.spec.Category>`
+        *that should be run after all tests of this category*
+
+14. *run hooks of* :class:`specification<bast3st.spec.Bast3StSpec>`
+    *that should be run after all categories*
+
+.. note::
+
+   This order of hook execution is only important if you rely on
+   results from other stages being present, like when you set
+   flags or change the global state in other means.
+
