@@ -1075,6 +1075,10 @@ class _Data(FutureMapping[Features]):
 
     @typing.overload
     def __getitem__(
+        self, key: Literal["blockcount", "param"]
+    ) -> FutureMapping[Any]: ...  # type: ignore
+    @typing.overload
+    def __getitem__(
         self, key: Literal["variables", "lists"]
     ) -> FutureMapping[Features]: ...  # type: ignore
     @typing.overload
@@ -1119,6 +1123,14 @@ class _Data(FutureMapping[Features]):
     def randoms(self) -> FutureArray[Features]:
         return self["randoms"]
 
+    @property
+    def blockcount(self) -> FutureMapping[Any]:
+        return self["blockcount"]
+
+    @property
+    def param(self) -> FutureMapping[Any]:
+        return self["param"]
+
     def _format_item_repr(self, key: tuple[Value, ...], base=None) -> str:
         if (
             len(key) >= 1
@@ -1154,3 +1166,7 @@ INPUT: FutureArray[FS_read_rundata] = DATA["input"]
 
 RANDOMS: FutureArray[FS_read_rundata] = DATA["randoms"]
 """:class:`FutureArray` that represents the random numbers a submission requested and got during the current test"""
+
+
+BLOCKCOUNT: FutureMapping[Any] = DATA.blockcount
+PARAM: FutureMapping[Any] = DATA.param
