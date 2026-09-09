@@ -2,7 +2,8 @@ from __future__ import annotations
 import json
 from typing import Literal, Mapping, Self
 
-from bast3st.decisions import Action, Criterion
+from bast3st.actions import send_error
+from bast3st.decisions import BLOCKCOUNT, Action, Criterion, IntoTextValue, Value
 from bast3st.features import (
     PermittedFEAT_CondAltTestActAct,
     PermittedFEAT_CondAltTestActCrit,
@@ -21,9 +22,12 @@ class SpecEntity:
     def __init__(self) -> None:
         self._if_then_actions: list = []
 
+    def _extra_hooks(self) -> list[tuple]:
+        return []
+
     def _hooks_to_json_like(self, ser):
         hooks = {}
-        for order, (criterion, action) in self._if_then_actions:
+        for order, (criterion, action) in self._if_then_actions + self._extra_hooks():
             group = hooks.get(order, [])
             group.append([ser.register(criterion), ser.register(action)])
 
@@ -56,6 +60,25 @@ class Bast3StSpec(SpecEntity):
         self._title = title
         self._description = description
         self._categories = []
+        self._limit = None
+
+    def _extra_hooks(self) -> list[tuple]:
+        return [self._limit] if self._limit is not None else []
+
+    def set_block_count_limit(
+        self,
+        maximum: int,
+        error_msg: IntoTextValue[PermittedFEAT_CondSpecActAct] | None = None,
+    ):
+        if error_msg is None:
+            error_msg = (
+                f"Sie verwenden zu viele Blöcke. Maximal erlaubt sind {maximum}."
+            )
+        self._limit = (
+            "before-all-categories",
+            (BLOCKCOUNT["total"] > maximum, send_error(error_msg)),
+        )
+        pass
 
     def new_category(self, title: str, *, description: str | None = None) -> Category:
         self._categories.append(Category(title=title, description=description))

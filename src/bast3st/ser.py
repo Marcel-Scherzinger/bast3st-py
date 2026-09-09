@@ -2,7 +2,6 @@ import typing
 import json
 
 from bast3st._general import MAX_INLINE_STR_LEN
-from bast3st.actions import end_this_test_immediatly
 from bast3st.decisions import LitValue
 
 
