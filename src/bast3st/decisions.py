@@ -359,13 +359,9 @@ type IntoValue[Features] = IntoTextValue[Features] | float | int | bool
 class LitValue(Value):
     def __init__(self, val: str | int | float | bool) -> None:
         super().__init__()
-        self._val = val
+        self._val = val._val if isinstance(val, LitValue) else val
 
     def _to_json_able(self, _ser):
-        if isinstance(self._val, str) and len(self._val) <= MAX_INLINE_STR_LEN:
-            return self._val
-        if isinstance(self._val, SerVal):
-            return self._val._to_json_able(_ser)
         return dict(op="lit", v=ForceInline(self._val))
 
     def __repr__(self) -> str:

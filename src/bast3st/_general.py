@@ -1,4 +1,4 @@
-MAX_INLINE_STR_LEN = 100
+MAX_INLINE_STR_LEN = 42
 
 
 class ForceInline:

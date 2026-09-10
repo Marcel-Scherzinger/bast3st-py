@@ -25,10 +25,14 @@ class DecisionSerializer:
                 return None
             return obj
 
-        elif isinstance(entity, (int, float, bool)):
+        elif isinstance(entity, (int, float, bool, str)):
             entity = LitValue(entity)
-        elif isinstance(entity, LitValue) and isinstance(entity._val, str):
-            entity = entity._val
+        if (
+            isinstance(entity, LitValue)
+            and isinstance(entity._val, str)
+            and len(entity._val) < MAX_INLINE_STR_LEN
+        ):
+            return entity._val
 
         if isinstance(entity, str):
             obj = entity
