@@ -1,5 +1,7 @@
 import enum
 
+from bast3st._general import ForceInline
+
 
 class err(enum.Flag):
     """
@@ -69,5 +71,5 @@ class err(enum.Flag):
     - :data:`regex`
     """
 
-    def _to_json_able(self, ser):
-        return [x.name for x in list(self)]
+    def _to_json_able(self, _ser):
+        return ForceInline("|".join([x.name for x in list(self) if x.name is not None]))

@@ -15,7 +15,7 @@ from bast3st.features import (
     PermittedFEAT_CondTestActCrit,
     PermittedFEAT_PassTestCrit,
 )
-from bast3st.ser import DecisionSerializer
+from bast3st.ser import DecisionSerializer, _ser_post_process
 
 
 class SpecEntity:
@@ -102,7 +102,12 @@ class Bast3StSpec(SpecEntity):
         ser = DecisionSerializer()
         base = self._to_json(ser)
         base["nodes"] = ser._final
-        return json.dumps(base, indent=indent)
+        return json.dumps(base, indent=indent, default=_ser_post_process)
+
+    def _node_dict(self):
+        ser = DecisionSerializer()
+        self._to_json(ser)
+        return ser._final
 
     def _to_json(self, ser):
         base: dict = dict(

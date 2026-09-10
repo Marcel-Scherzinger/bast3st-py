@@ -25,66 +25,65 @@
     "before-all-categories": [
       [
         15,
-        17
+        16
       ]
     ]
   },
   "nodes": {
-    "1": "Wie w\u00e4re es mit folgendem: Guten Tag ",
-    "2": {
+    "1": {
       "op": "read-input"
     },
-    "3": {
+    "2": {
       "op": "view",
-      "a": [
-        "values",
-        2
-      ]
+      "p": "values",
+      "m": 1
     },
-    "4": {
+    "3": {
       "op": "lit",
       "v": 0
     },
-    "5": {
+    "4": {
       "op": "mapitem",
-      "m": 3,
+      "m": 2,
       "k": [
+        3
+      ]
+    },
+    "5": {
+      "op": "concat",
+      "a": [
+        "Wie w\u00e4re es mit folgendem: Guten Tag ",
         4
       ]
     },
     "6": {
-      "op": "concat",
-      "a": [
-        1,
-        5
-      ]
-    },
-    "7": {
       "op": "read-output"
     },
-    "8": {
+    "7": {
       "op": "view",
-      "a": [
-        "values",
-        7
-      ]
+      "p": "values",
+      "m": 6
     },
-    "9": {
+    "8": {
       "op": "lit",
       "v": -1
     },
-    "10": {
+    "9": {
       "op": "mapitem",
-      "m": 8,
+      "m": 7,
       "k": [
-        9
+        8
       ]
+    },
+    "10": {
+      "op": "lit",
+      "v": 4
     },
     "11": {
       "op": "contain-text",
-      "fexp": 6,
-      "sub": 5,
-      "sup": 10
+      "fexp": 5,
+      "sub": 10,
+      "sup": 9
     },
     "12": {
       "op": "read-blockcount"
@@ -102,15 +101,12 @@
     },
     "15": {
       "op": ">",
-      "a": [
-        13,
-        14
-      ]
+      "l": 13,
+      "r": 14
     },
-    "16": "Sie verwenden zu viele Bl\u00f6cke",
-    "17": {
+    "16": {
       "op": "send-msg",
-      "t": 16,
+      "t": "Sie verwenden zu viele Bl\u00f6cke",
       "s": "error"
     }
   }

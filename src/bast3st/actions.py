@@ -1,7 +1,7 @@
 from typing import Literal, overload
-import typing
 from .decisions import (
     Action,
+    SerAct,
     IntoTextValue,
     IntoValue,
     MsgSeverityT,
@@ -14,40 +14,6 @@ from .features import (
     Features,
     Features2,
 )
-
-
-class SerAct(Action[Features]):
-    def __init__(self, opcode: str, *args, **kwargs) -> None:
-        super().__init__()
-        self.opcode = opcode
-        self.args = args
-        self.kwargs = kwargs
-        self._syntax = "func"
-
-    def _ar(self, *args, **kwargs) -> str:
-        return super()._ar(*self.args, *args, **self.kwargs, **kwargs)
-
-    def __repr__(self) -> str:
-        if self._syntax == "meth":
-            return f"{self.args[0]!r}.{self.opcode}({super()._ar(*self.args[1:], **self.kwargs)})"
-        if self._syntax == "prop":
-            extra = super()._ar(*self.args[1:], **self.kwargs)
-            if len(extra) > 0:
-                return f"{self.args[0]!r}.{self.opcode}({extra})"
-            else:
-                return f"{self.args[0]!r}.{self.opcode}"
-        return f"{self.opcode}({self._ar()})"
-
-    def _with_syntax(self, syntax: typing.Literal["func", "meth", "prop"]) -> SerAct:
-        self._syntax = syntax
-        return self
-
-    def _to_json_able(self, ser):
-        return dict(
-            op=self.opcode,
-            a=ser.register(self.args),
-            **{k: ser.register(v) for (k, v) in self.kwargs.items()},
-        )
 
 
 type LevelT = Literal["maintest", "alttest", "thistest", "category", "spec"]
@@ -170,19 +136,19 @@ def send_error(text: IntoTextValue, level: LevelT | None = None) -> Action:
 def pass_this_test_immediatly(
     explaination: IntoTextValue[Features],
 ) -> Action[Features | FA_end_this_test]:
-    return SerAct("end-this-test", "pass", explaination)
+    return SerAct("end-this-test", m="pass", e=explaination)
 
 
 def fail_this_test_immediatly(
     explaination: IntoTextValue[Features],
 ) -> Action[Features | FA_end_this_test]:
-    return SerAct("end-this-test", "fail", explaination)
+    return SerAct("end-this-test", m="fail", e=explaination)
 
 
 def end_this_test_immediatly(
     explaination: IntoTextValue[Features], *mode: Literal["fail", "pass"]
 ) -> Action[Features | FA_end_this_test]:
-    return SerAct("end-this-test", mode, explaination)
+    return SerAct("end-this-test", m=mode, e=explaination)
 
 
 # set flag
@@ -203,4 +169,4 @@ def set_flag(
     as this would force the program to stick to a specific testing order.
     """
     # mode="keep" is for now the only option, keeps the default (public?)
-    return SerAct("set-flag", "keep", Value.of(key), Value.of(value))
+    return SerAct("set-flag", m="keep", k=Value.of(key), v=Value.of(value))

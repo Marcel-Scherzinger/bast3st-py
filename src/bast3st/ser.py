@@ -1,7 +1,7 @@
 import typing
 import json
 
-from bast3st._general import MAX_INLINE_STR_LEN
+from bast3st._general import MAX_INLINE_STR_LEN, ForceInline
 from bast3st.decisions import LitValue
 
 
@@ -24,27 +24,47 @@ class DecisionSerializer:
             if len(entity) == 0:
                 return None
             return obj
+
         elif isinstance(entity, (int, float, bool)):
-            return LitValue(entity)._to_json_able(self)
-        if isinstance(entity, LitValue) and isinstance(entity._val, str):
+            entity = LitValue(entity)
+        elif isinstance(entity, LitValue) and isinstance(entity._val, str):
             entity = entity._val
+
         if isinstance(entity, str):
             obj = entity
             if len(obj) <= MAX_INLINE_STR_LEN:
                 return obj
         else:
             obj = entity._to_json_able(self)
+            if isinstance(obj, ForceInline):
+                return obj
             if isinstance(obj, dict):
-                obj = {k: v for (k, v) in obj.items() if v is not None}
+                obj = {k: self.register(v) for (k, v) in obj.items() if v is not None}
 
         self._last_id += 1
         self._repr_to_id[r] = self._last_id
 
         self._final[self._last_id] = obj
-        return self._last_id
+        return ForceInline(self._last_id)
+
+    def registerDictStar(self, entity: dict | None) -> dict:
+
+        if isinstance(entity, dict):
+            return {k: self.register(v) for (k, v) in entity.items()}
+
+        y = self.register(entity)
+        if y is None:
+            return {}
+        return y  # type: ignore
 
     def __str__(self) -> str:
         return json.dumps(self._final, indent=2)
 
     def min_json(self) -> str:
         return json.dumps(self._final)
+
+
+def _ser_post_process(v):
+    if isinstance(v, ForceInline):
+        return v._val
+    return v

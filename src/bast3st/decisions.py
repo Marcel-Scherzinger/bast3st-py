@@ -7,7 +7,7 @@ import itertools
 import typing
 import copy
 
-from bast3st._general import MAX_INLINE_STR_LEN
+from bast3st._general import MAX_INLINE_STR_LEN, ForceInline
 from bast3st.catchable import err
 from bast3st.features import (
     FS_read_rundata,
@@ -127,45 +127,45 @@ class Value(DecisionEntity[Features], abc.ABC):
     def __add__(
         self, other: IntoValue[Features2], /
     ) -> Value[Features | Features2 | Features2]:
-        return SerVal("add", self, Value.ofStrict(other))
+        return SerVal("add", l=self, r=Value.ofStrict(other))
 
     def __sub__(self, other: IntoValue[Features2], /) -> Value[Features | Features2]:
-        return SerVal("sub", self, Value.ofStrict(other))
+        return SerVal("sub", l=self, r=Value.ofStrict(other))
 
     def __mul__(self, other: IntoValue[Features2], /) -> Value[Features | Features2]:
-        return SerVal("mul", self, Value.ofStrict(other))
+        return SerVal("mul", l=self, r=Value.ofStrict(other))
 
     def __truediv__(
         self, other: IntoValue[Features2], /
     ) -> Value[Features | Features2]:
-        return SerVal("truediv", self, Value.ofStrict(other))
+        return SerVal("truediv", l=self, r=Value.ofStrict(other))
 
     def __floordiv__(
         self, other: IntoValue[Features2], /
     ) -> Value[Features | Features2]:
         # // operator (integer division)
-        return SerVal("floordiv", self, Value.ofStrict(other))
+        return SerVal("floordiv", l=self, r=Value.ofStrict(other))
 
     def __mod__(self, other: IntoValue[Features2], /) -> Value[Features | Features2]:
-        return SerVal("mod", self, Value.ofStrict(other))
+        return SerVal("mod", l=self, r=Value.ofStrict(other))
 
     def __pow__(self, other: IntoValue[Features2], /) -> Value[Features | Features2]:
-        return SerVal("pow", self, Value.ofStrict(other))
+        return SerVal("pow", l=self, r=Value.ofStrict(other))
 
     def __neg__(self, /) -> Value[Features]:
-        return SerVal("neg", self)
+        return SerVal("neg", v=self)
 
     def __floor__(self, /) -> Value[Features]:
-        return SerVal("floor", self)
+        return SerVal("floor", v=self)
 
     def __ceil__(self, /) -> Value[Features]:
-        return SerVal("ceil", self)
+        return SerVal("ceil", v=self)
 
     def __round__(self, /) -> Value[Features]:
-        return SerVal("round", self)
+        return SerVal("round", v=self)
 
     def __abs__(self, /) -> Value[Features]:
-        return SerVal("abs", self)
+        return SerVal("abs", v=self)
 
     def contains_text(
         self,
@@ -341,12 +341,12 @@ class Value(DecisionEntity[Features], abc.ABC):
     ) -> Value[Features | Features2 | Features3 | Features4]:
         return SerVal(
             "catch",
-            self,
-            error,
+            v=self,
+            error=error,
             only_if=only_if,
             default_value=Value.of(default_value),
             action=action,
-        )._with_syntax("meth")
+        )._with_syntax("meth", as_args=["v"])
 
 
 type IntoTextValue[Features] = str | templatelib.Template | Value[Features]
@@ -364,10 +364,12 @@ class LitValue(Value):
     def _to_json_able(self, _ser):
         if isinstance(self._val, str) and len(self._val) <= MAX_INLINE_STR_LEN:
             return self._val
-        return dict(op="lit", v=self._val)
+        if isinstance(self._val, SerVal):
+            return self._val._to_json_able(_ser)
+        return dict(op="lit", v=ForceInline(self._val))
 
     def __repr__(self) -> str:
-        return repr(self._val)
+        return "LitValue(" + repr(self._val) + ")"
 
 
 ################################
@@ -379,6 +381,40 @@ MsgSeverityT = Literal["info", "warning", "error"]
 
 class Action(DecisionEntity[Features]):
     pass
+
+
+class SerAct(Action[Features]):
+    def __init__(self, opcode: str, *args, **kwargs) -> None:
+        super().__init__()
+        self.opcode = opcode
+        self.args = args
+        self.kwargs = kwargs
+        self._syntax = "func"
+
+    def _ar(self, *args, **kwargs) -> str:
+        return super()._ar(*self.args, *args, **self.kwargs, **kwargs)
+
+    def __repr__(self) -> str:
+        if self._syntax == "meth":
+            return f"{self.args[0]!r}.{self.opcode}({super()._ar(*self.args[1:], **self.kwargs)})"
+        if self._syntax == "prop":
+            extra = super()._ar(*self.args[1:], **self.kwargs)
+            if len(extra) > 0:
+                return f"{self.args[0]!r}.{self.opcode}({extra})"
+            else:
+                return f"{self.args[0]!r}.{self.opcode}"
+        return f"{self.opcode}({self._ar()})"
+
+    def _with_syntax(self, syntax: typing.Literal["func", "meth", "prop"]) -> SerAct:
+        self._syntax = syntax
+        return self
+
+    def _to_json_able(self, ser):
+        return dict(
+            op=self.opcode,
+            a=ser.register(self.args),
+            **{k: ser.register(v) for (k, v) in self.kwargs.items()},
+        )
 
 
 ################################
@@ -401,7 +437,7 @@ class SerVal(Value[Features]):
         self.opcode = opcode
         self.args = args
         self.kwargs = kwargs
-        self._syntax = "func"
+        self._syntax = ("func", [])
 
     def _ar(self, *args, **kwargs) -> str:
         return super()._ar(*self.args, *args, **self.kwargs, **kwargs)
@@ -410,23 +446,33 @@ class SerVal(Value[Features]):
         return dict(
             op=self.opcode,
             a=ser.register(self.args),
-            **{k: ser.register(v) for (k, v) in self.kwargs.items()},
+            **ser.registerDictStar(self.kwargs),
         )
 
     def __repr__(self) -> str:
         opcode = self.opcode.replace("-", "_")
-        if self._syntax == "meth":
-            return f"{self.args[0]!r}.{opcode}({super()._ar(*self.args[1:], **self.kwargs)})"
-        if self._syntax == "prop":
-            extra = super()._ar(*self.args[1:], **self.kwargs)
-            if len(extra) > 0:
-                return f"{self.args[0]!r}.{opcode}({extra})"
-            else:
-                return f"{self.args[0]!r}.{opcode}"
-        return f"{opcode}({self._ar()})"
 
-    def _with_syntax(self, syntax: typing.Literal["func", "meth", "prop"]) -> SerVal:
-        self._syntax = syntax
+        args = list(self.args)
+        kwargs = dict(self.kwargs)
+        for k in self._syntax[1]:
+            args.append(kwargs.pop(k))
+
+        if self._syntax == "meth":
+            return f"{args[0]!r}.{opcode}({super()._ar(*args[1:], **kwargs)})"
+        if self._syntax == "prop":
+            extra = super()._ar(*args[1:], **kwargs)
+            if len(extra) > 0:
+                return f"{args[0]!r}.{opcode}({extra})"
+            else:
+                return f"{args[0]!r}.{opcode}"
+        return f"{opcode}({super()._ar(args, kwargs)})"
+
+    def _with_syntax(
+        self,
+        syntax: typing.Literal["func", "meth", "prop"],
+        as_args: list[str] | None = None,
+    ) -> SerVal:
+        self._syntax = (syntax, as_args or [])
         return self
 
 
@@ -436,7 +482,7 @@ class TransformSingleNoParam(Transformation[Features]):
         self.opcode = opcode
 
     def on(self, value: IntoValue[Features2]) -> Value[Features | Features2]:
-        return SerVal(self.opcode, value)
+        return SerVal(self.opcode, v=value)
 
     def __call__(self, value: IntoValue[Features2]) -> Value[Features | Features2]:
         return self.on(value)
@@ -546,7 +592,8 @@ class Criterion(DecisionEntity[Features]):
     ) -> Criterion[Features | Features2 | Features3 | Features4]:
         return SerCrit(
             "catch",
-            error,
+            c=self,
+            error=error,
             only_if=only_if,
             fallback=fallback,
             action=action,
@@ -583,7 +630,7 @@ class SerCrit(Criterion[Features]):
             "op": self.opcode,
             "a": ser.register(self._args),
             "fexp": ser.register(self.failure_explaination),
-            **{k: ser.register(v) for (k, v) in self._kwargs.items()},
+            **ser.registerDictStar(self._kwargs),
         }
 
 
@@ -610,10 +657,11 @@ def if_then_else(if_, then_, else_):  # type: ignore
         raise TypeError("Can't use if_then_else with mixed signature for then_/else_")
 
     if isinstance(then_, Criterion):
-        return SerCrit("ifte", if_, then_, else_)
+        return SerCrit("cifte", i=if_, t=then_, e=else_)
+    elif isinstance(then_, Action):
+        return SerAct("aifte", i=if_, t=then_, e=else_)
     else:
-        # TODO: rethink if actions should be different
-        return SerVal("ifte", if_, then_, else_)
+        return SerVal("vifte", i=if_, t=then_, e=else_)
 
 
 class compare(SerCrit[Features | Features2 | Features3]):
@@ -634,8 +682,8 @@ class compare(SerCrit[Features | Features2 | Features3]):
         """
         super().__init__(
             relation,
-            Value.of(left),
-            Value.of(right),
+            l=Value.of(left),
+            r=Value.of(right),
             failure_explaination=failure_explaination,
         )
 
@@ -645,11 +693,11 @@ class compare(SerCrit[Features | Features2 | Features3]):
 
     @property
     def left(self) -> Value[Features]:
-        return self._args[0]
+        return self._kwargs["l"]
 
     @property
     def right(self) -> Value[Features2]:
-        return self._args[1]
+        return self._kwargs["r"]
 
     def __repr__(self) -> str:
         return f"{self.left!r} {self.relation} {self.right!r}"
@@ -734,7 +782,7 @@ def negated(
 ) -> Criterion[Features | Features2]:
     """Negate a criterion so that it accepts exactly when the original one didn't accept"""
     c: SerCrit[Features | Features2] = SerCrit(
-        "negated", criterion, failure_explaination=failure_explaination
+        "negated", c=criterion, failure_explaination=failure_explaination
     )
     c._consname = "negated"
     return c
@@ -794,18 +842,6 @@ class Selector(Value[Features]):
         self._args = args
 
 
-class FutureVariable(Selector[Features]):
-    def __init__(self, name: str) -> None:
-        super().__init__("var", name)
-
-    @property
-    def name(self):
-        return self._args[0]
-
-    def __repr__(self) -> str:
-        return f"VAR({self.name!r})"
-
-
 class FutureArray(typing.Protocol[Features]):
     """
     A :class:`FutureArray` represents a specific source of multiple
@@ -859,8 +895,8 @@ def LIST(name: str) -> FutureArray[FS_read_rundata]:
     return LISTS[name]
 
 
-def VAR(name: str) -> FutureVariable[FS_read_rundata]:
-    return VARIABLES[name]  # type: ignore
+def VAR(name: str) -> Value[FS_read_rundata]:
+    return VARIABLES[name]
 
 
 class FutureMapping(DecisionEntity[Features]):
@@ -879,7 +915,7 @@ class FutureMapping(DecisionEntity[Features]):
         return dict(
             op=self._kind,
             a=ser.register(self._args),
-            **{k: ser.register(v) for (k, v) in self._kwargs.items()},
+            **ser.registerDictStar(self._kwargs),
         )
 
     @property
@@ -904,7 +940,7 @@ class FutureMapping(DecisionEntity[Features]):
     @property
     def length(self) -> Value[Features]:
         """The number of items in the mapping"""
-        return SerVal("length", self)._with_syntax("prop")
+        return SerVal("length", v=self)._with_syntax("prop")
 
     def keys(self) -> FutureArray[Features]:
         """Array of all keys of the mapping (indexed by numbers), in their sorting order"""
@@ -1001,11 +1037,11 @@ class FutureViewMapping(FutureMapping[Features]):
     @property
     def perspective(self):
         """The thing this view makes accessible"""
-        return self._args[0]
+        return self._kwargs["p"]
 
     @property
     def inner_viewed(self):
-        return self._args[1]
+        return self._kwargs["m"]
 
     def __init__(
         self,
@@ -1014,7 +1050,7 @@ class FutureViewMapping(FutureMapping[Features]):
         mapping: FutureMapping[Features],
         /,
     ) -> None:
-        super().__init__(kind, perspective, mapping)
+        super().__init__(kind, p=perspective, m=mapping)
 
     def __repr__(self) -> str:
         return f"{self.inner_viewed!r}.{self.perspective}()"
@@ -1026,10 +1062,10 @@ class FirstPatternCapture(FutureMapping[Features | Features2]):
     def __init__(
         self, pattern: IntoTextValue[Features], value: Value[Features2]
     ) -> None:
-        super().__init__("first-capture", pattern, value)
+        super().__init__("first-capture", p=pattern, sup=value)
 
     def __repr__(self) -> str:
-        return f"{self._args[1]!r}.first_capture({self._args[0]}!r)"
+        return f"{self._kwargs['sup']!r}.first_capture({self._kwargs['p']}!r)"
 
 
 class NetworkRequest(FutureMapping[Features | Features2 | Features3]):
@@ -1103,13 +1139,16 @@ class NetworkRequest(FutureMapping[Features | Features2 | Features3]):
         elif isinstance(json, list):
             json = [(Value.of(k), Value.of(v)) for (k, v) in json]
 
+        if isinstance(allowed_status, int):
+            allowed_status = (allowed_status,)
+
         super().__init__(
             "network",
             server=server,
             route=Value.of(route),
             method=method,
             json=json,
-            allowed_status=allowed_status,
+            **{"allowed-status": list[allowed_status]},
         )
 
 
