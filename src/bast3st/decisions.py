@@ -798,7 +798,7 @@ class all_of(SerCrit[Features | Features2]):
                 _clauses.append(c)
 
         super().__init__(
-            self.__class__.__name__,
+            self.__class__.__name__.replace("_", "-"),
             *_clauses,
             failure_explaination=failure_explaination,
         )
@@ -820,7 +820,7 @@ class any_of(SerCrit[Features | Features2]):
                 _clauses.append(c)
 
         super().__init__(
-            self.__class__.__name__,
+            self.__class__.__name__.replace("_", "-"),
             *_clauses,
             failure_explaination=failure_explaination,
         )
