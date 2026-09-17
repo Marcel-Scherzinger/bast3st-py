@@ -52,7 +52,7 @@ class err(enum.Flag):
     regex_noGroup = enum.auto()
     regex = regex_syntax | regex_noMatch | regex_noGroup | regex_invalidHaystack
 
-    #: a MapKey that was used to index an array is either not in range or not a non-negative int
+    #: a MapKey that was used to index an array is either not in range or not an int
     collection_keyInvalidForArray = enum.auto()
     #: the key doesn't belong to a value in the collection at hand
     collection_valueNotFound = enum.auto()

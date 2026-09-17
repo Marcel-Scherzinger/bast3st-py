@@ -15,7 +15,7 @@ class DecisionSerializer:
         """Use repr(entity) as key to get a unique id"""
         r = repr(entity)
         if (val := self._repr_to_id.get(r, None)) is not None:
-            return val
+            return ForceInline(val)
 
         if entity is None:
             return None
@@ -62,10 +62,10 @@ class DecisionSerializer:
         return y  # type: ignore
 
     def __str__(self) -> str:
-        return json.dumps(self._final, indent=2)
+        return json.dumps(self._final, indent=2, default=_ser_post_process)
 
     def min_json(self) -> str:
-        return json.dumps(self._final)
+        return json.dumps(self._final, default=_ser_post_process)
 
 
 def _ser_post_process(v):
