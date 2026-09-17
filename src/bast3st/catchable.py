@@ -13,63 +13,80 @@ class err(enum.Flag):
 
     Never rely on the exact numeric values of the following constants.
     They are not stable and not considered part of the api.
+
+    (You can click on the `[source]` button to see how compound flags are defined.)
     """
 
-    # network
-    #: the status that was reported isn't among the ones in the allowed list
+    #: the status that was reported isn't among the ones in the allow-list
     network_statusDisallowed = enum.auto()
     #: a selector tried to extract json from the response,
     #: but the response is not json
     network_respInvalid_notJson = enum.auto()
-    network = network_respInvalid_notJson | network_statusDisallowed
-    """
-    - :data:`network_respInvalid_notJson`
-    - :data:`network_statusDisallowed`
-    """
+    #: the administrator doesn't allow contacting the specified server
+    network_policy_serverNotAllowed = enum.auto()
+    #: networking can always fail, this error indicates that the program tried to
+    #: execute the request but something failed that wasn't in the program's control
+    network_external = enum.auto()
 
-    # missingSelection
-    missingSelection_input = enum.auto()
-    missingSelection_output = enum.auto()
+    network = (
+        network_respInvalid_notJson
+        | network_statusDisallowed
+        | network_policy_serverNotAllowed
+        | network_external
+    )
+
     #: a variable was requested that is missing, e.g. no variable with the specified name exists
-    missingSelection_variable = enum.auto()
+    missing_variable = enum.auto()
     #: a list was requested and the whole list is missing.
     #: If the list was requested by name, there is no list with this name.
-    missingSelection_list_whole = enum.auto()
-    #: the list exists but the requested item of the list does not
-    missingSelection_list_item = enum.auto()
-    missingSelection_list = missingSelection_list_whole | missingSelection_list_item
-    """
-    - :data:`missingSelection_list_item`
-    - :data:`missingSelection_list_whole`
-    """
-    missingSelection = (
-        missingSelection_list
-        | missingSelection_output
-        | missingSelection_input
-        | missingSelection_variable
-    )
-    """
-    - :data:`missingSelection_list`
-    - :data:`missingSelection_output`
-    - :data:`missingSelection_input`
-    - :data:`missingSelection_variable`
-    """
+    missing_list = enum.auto()
+    missing = missing_list | missing_variable
 
+    #: the syntax of the pattern is invalid
     regex_syntax = enum.auto()
+    #: there is no match for the pattern in the specified text/array
     regex_noMatch = enum.auto()
-    regex = regex_syntax | regex_noMatch
-    """
-    - :data:`regex_syntax`
-    - :data:`regex_noMatch`
-    """
+    #: the thing in which the pattern should search is neither an array nor a text
+    regex_invalidHaystack = enum.auto()
+    #: the specified capture group doesn't exist
+    regex_noGroup = enum.auto()
+    regex = regex_syntax | regex_noMatch | regex_noGroup | regex_invalidHaystack
 
-    # any
-    any = missingSelection | network | regex
-    """
-    - :data:`missingSelection`
-    - :data:`network`
-    - :data:`regex`
-    """
+    #: a MapKey that was used to index an array is either not in range or not an int
+    collection_keyInvalidForArray = enum.auto()
+    #: the key doesn't belong to a value in the collection at hand
+    collection_valueNotFound = enum.auto()
+    collection = collection_keyInvalidForArray | collection_valueNotFound
 
-    def _to_json_able(self, _ser):
+    typing_notCollection_notArray = enum.auto()
+    typing_notCollection_notMapping = enum.auto()
+    typing_notCollection = (
+        typing_notCollection_notArray | typing_notCollection_notMapping
+    )
+
+    typing_notAction = enum.auto()
+    typing_notCriterion = enum.auto()
+    typing_notValue = enum.auto()
+    typing_notPrimitive = enum.auto()
+    typing_notText = enum.auto()
+    typing_notNumeric = enum.auto()
+    typing_notMapkey = enum.auto()
+    typing_notIterable = enum.auto()
+    #: `typing` errors occur if a component needs an evaluated value to be of a specific
+    #: shape while it isn't the case
+    typing = (
+        typing_notCollection
+        | typing_notAction
+        | typing_notCriterion
+        | typing_notValue
+        | typing_notPrimitive
+        | typing_notText
+        | typing_notNumeric
+        | typing_notMapkey
+        | typing_notIterable
+    )
+
+    any = missing | network | regex | collection | typing
+
+    def _to_json_able(self, _):
         return ForceInline("|".join([x.name for x in list(self) if x.name is not None]))
