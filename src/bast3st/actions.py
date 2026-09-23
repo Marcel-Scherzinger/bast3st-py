@@ -155,7 +155,7 @@ def end_this_test_immediatly(
 
 
 def set_flag(
-    key: IntoTextValue[Features],
+    *key: IntoTextValue[Features],
     value: IntoValue[Features2],
 ) -> Action[Features | Features2]:
     """
@@ -164,9 +164,9 @@ def set_flag(
     Flags set during the evaluation of one value are typically only available after the completion
     of the entire evaluation i.e. a if a value that executed this action by catching an error
     is used for a value that tries to read this flag, this last set will be invisible.
+    See the documentation for detailed flag-visibility rules, you may be surprised.
 
-    Currently, there will be no guarantee that other tests of the same category see the flag,
-    as this would force the program to stick to a specific testing order.
+    Flags form a nested mapping and the test specification is free to specify them
+    in a useful hierarchy of levels for structuring communication.
     """
-    # mode="keep" is for now the only option, keeps the default (public?)
-    return SerAct("set-flag", m="keep", k=Value.of(key), v=Value.of(value))
+    return SerAct("set-flag", k=[Value.of(k) for k in key], v=Value.of(value))

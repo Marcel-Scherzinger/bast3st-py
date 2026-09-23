@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from typing import Any, NoReturn, Literal, TypedDict
+from typing import Any, NoReturn, Literal
 import abc
 from string import templatelib
 import itertools
 import typing
 import copy
 
-from bast3st._general import MAX_INLINE_STR_LEN, ForceInline
+from bast3st._general import ForceInline
 from bast3st.catchable import err
 from bast3st.features import (
     FS_read_rundata,
@@ -361,7 +361,7 @@ class LitValue(Value):
         super().__init__()
         self._val = val._val if isinstance(val, LitValue) else val
 
-    def _to_json_able(self, _ser):
+    def _to_json_able(self, _):
         return dict(op="lit", v=ForceInline(self._val))
 
     def __repr__(self) -> str:
@@ -1163,9 +1163,7 @@ class _Data(FutureMapping[Features]):
 
     def __init__(
         self,
-        section: Literal[
-            "input", "output", "randoms", "blockcount", "lists", "variables", "flags"
-        ],
+        section: Literal["input", "output", "randoms", "lists", "variables", "flags"],
     ) -> None:
         super().__init__(
             "read-" + section,
