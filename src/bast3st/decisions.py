@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, NoReturn, Literal
+from typing import Any, NoReturn, Literal, TypedDict
 import abc
 from string import templatelib
 import itertools
@@ -28,7 +28,7 @@ type MapScopeT = Literal[
     "read-randoms",
     "read-variables",
     "read-param",
-    "read-blockcount",
+    "read-flags",
     "mapitem",
     "view",
 ]
@@ -1013,9 +1013,14 @@ class FutureMapItem(
         Selector.__init__(self, "mapitem", mapping, key)
 
     def _to_json_able(self, ser):
-        return dict(
-            op="mapitem", m=ser.register(self._mapping), k=ser.register(self._my_key)
-        )
+        if (sect := getattr(self._mapping, "_direct_section", None)) is not None:
+            return dict(op="cmapitem", m=sect, k=ser.register(self._my_key))
+        else:
+            return dict(
+                op="mapitem",
+                m=ser.register(self._mapping),
+                k=ser.register(self._my_key),
+            )
 
     @property
     def _mapping(self):
@@ -1159,18 +1164,68 @@ class _Data(FutureMapping[Features]):
     def __init__(
         self,
         section: Literal[
-            "input", "output", "randoms", "blockcount", "param", "lists", "variables"
+            "input", "output", "randoms", "blockcount", "lists", "variables", "flags"
         ],
     ) -> None:
         super().__init__(
             "read-" + section,
         )
         self._section = section
+        self._direct_section = section
 
     def __getitem__(  # type: ignore
         self, key
     ) -> FutureMapItem:
         return super().__getitem__(key)
+
+    def __repr__(self) -> str:
+        return self._section.upper()
+
+
+class _Param(FutureMapping[Features]):
+    def __init__(
+        self,
+    ) -> None:
+        super().__init__("read-param")
+        self._section = "param"
+        self._direct_section = "param"
+
+    def __getitem__(  # type: ignore
+        self, key: tuple[Literal["my", "doc", "teststatus"], *tuple[IntoValue, ...]]
+    ) -> FutureMapItem:
+        return super().__getitem__(key)
+
+    def my(self, *key: IntoValue) -> FutureMapItem:
+        """
+        Parameters that the user set in his account or specifically on the server
+        for the specific url slot where this specification is registered.
+        (they can't be changed during runtime.)
+        """
+        return self["my", *key]
+
+    @typing.overload
+    def doc(
+        self, scope1: Literal["blockcount"], scope2: Literal["group"], group: str, /
+    ) -> Value: ...
+    @typing.overload
+    def doc(
+        self, scope1: Literal["blockcount"], scope2: Literal["opcode"], opcode: str, /
+    ) -> Value: ...
+    @typing.overload
+    def doc(
+        self, scope1: Literal["blockcount"], scope2: Literal["total"], /
+    ) -> Value: ...
+    @typing.overload
+    def doc(self, scope1: Literal["blockcount"], /) -> FutureMapItem: ...
+
+    def doc(self, *key: IntoValue) -> FutureMapItem:  # type: ignore
+        """
+        Information about the scratch document that contains the submission.
+        """
+        return self["doc", *key]
+
+    def teststatus(self, *key: IntoValue):
+        return self["teststatus", *key]
 
     def __repr__(self) -> str:
         return self._section.upper()
@@ -1185,8 +1240,10 @@ INPUT: FutureArray[FS_read_rundata] = _Data("input")
 RANDOMS: FutureArray[FS_read_rundata] = _Data("randoms")
 """:class:`FutureArray` that represents the random numbers a submission requested and got during the current test"""
 
+FLAGS: FutureMapping = _Data("flags")
+
 LISTS: FutureMapping[FS_read_rundata] = _Data("lists")
 VARIABLES: FutureArray[FS_read_rundata] = _Data("variables")
 
-BLOCKCOUNT: FutureMapping[Any] = _Data("blockcount")
-PARAM: FutureMapping[Any] = _Data("param")
+PARAM = _Param()  # type: ignore
+BLOCKCOUNT: FutureMapping[Any] = PARAM.doc("blockcount")
