@@ -27,12 +27,15 @@ class err(enum.Flag):
     #: networking can always fail, this error indicates that the program tried to
     #: execute the request but something failed that wasn't in the program's control
     network_external = enum.auto()
+    #: the combination of server + '/' + route can't be parsed as a valid url
+    network_url_syntax = enum.auto()
 
     network = (
         network_respInvalid_notJson
         | network_statusDisallowed
         | network_policy_serverNotAllowed
         | network_external
+        | network_url_syntax
     )
 
     #: a variable was requested that is missing, e.g. no variable with the specified name exists
