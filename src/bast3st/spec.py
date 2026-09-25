@@ -3,7 +3,13 @@ import json
 from typing import Literal, Mapping, Self
 
 from bast3st.actions import send_error
-from bast3st.decisions import BLOCKCOUNT, Action, Criterion, IntoTextValue, Value
+from bast3st.decisions import (
+    ALWAYS_FULFILLED,
+    BLOCKCOUNT,
+    Action,
+    Criterion,
+    IntoTextValue,
+)
 from bast3st.features import (
     PermittedFEAT_CondAltTestActAct,
     PermittedFEAT_CondAltTestActCrit,
@@ -95,6 +101,15 @@ class Bast3StSpec(SpecEntity):
         self._if_then_actions.append((order, (criterion, action)))
         return self
 
+    def run_action(
+        self,
+        action: Action[PermittedFEAT_CondSpecActAct],
+        order: Literal[
+            "before-all-categories", "after-all-categories"
+        ] = "after-all-categories",
+    ) -> Self:
+        return self.if_criterion_then(ALWAYS_FULFILLED, action=action, order=order)
+
     def __repr__(self) -> str:
         return self._repr(title=self._title, description=self._description)
 
@@ -169,6 +184,13 @@ class Category(SpecEntity):
     ) -> Self:
         self._if_then_actions.append((order, (criterion, action)))
         return self
+
+    def run_action(
+        self,
+        action: Action[PermittedFEAT_CondCatActAct],
+        order: Literal["before-all-tests", "after-all-tests"] = "after-all-tests",
+    ) -> Self:
+        return self.if_criterion_then(ALWAYS_FULFILLED, action=action, order=order)
 
     def __repr__(self) -> str:
         return self._repr(title=self._title, description=self._description)
@@ -290,11 +312,20 @@ class MainTest(AnyTest):
         criterion: Criterion[PermittedFEAT_CondTestActCrit],
         action: Action[PermittedFEAT_CondTestActAct],
         order: Literal[
-            "before-main", "before-alternatives", "after-alternatives"
-        ] = "before-alternatives",
+            "before-main", "before-alternatives", "after-complete"
+        ] = "after-complete",
     ) -> Self:
         self._if_then_actions.append((order, (criterion, action)))
         return self
+
+    def run_action(
+        self,
+        action: Action[PermittedFEAT_CondTestActAct],
+        order: Literal[
+            "before-main", "before-alternatives", "after-complete"
+        ] = "after-complete",
+    ) -> Self:
+        return self.if_criterion_then(ALWAYS_FULFILLED, action=action, order=order)
 
     def _to_json(self, ser) -> dict:
         base: dict = super()._to_json(ser)
@@ -312,3 +343,10 @@ class AlternativeTest(AnyTest):
     ) -> Self:
         self._if_then_actions.append((order, (criterion, action)))
         return self
+
+    def run_action(
+        self,
+        action: Action[PermittedFEAT_CondAltTestActAct],
+        order: Literal["before-alt", "after-alt"] = "after-alt",
+    ) -> Self:
+        return self.if_criterion_then(ALWAYS_FULFILLED, action=action, order=order)

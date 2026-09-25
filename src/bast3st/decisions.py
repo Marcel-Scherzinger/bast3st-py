@@ -453,9 +453,9 @@ class SerVal(Value[Features]):
         for k in self._syntax[1]:
             args.append(kwargs.pop(k))
 
-        if self._syntax == "meth":
+        if self._syntax[0] == "meth":
             return f"{args[0]!r}.{opcode}({super()._ar(*args[1:], **kwargs)})"
-        if self._syntax == "prop":
+        if self._syntax[0] == "prop":
             extra = super()._ar(*args[1:], **kwargs)
             if len(extra) > 0:
                 return f"{args[0]!r}.{opcode}({extra})"
@@ -628,6 +628,23 @@ class SerCrit(Criterion[Features]):
             "fexp": ser.register(self.failure_explaination),
             **ser.registerDictStar(self._kwargs),
         }
+
+
+class _ConstantCrit(SerCrit):
+    def __init__(self, opcode: str, label: str, **kwargs) -> None:
+        super().__init__(opcode, **kwargs)
+        self._label = label
+
+    def __repr__(self) -> str:
+        return str(self._label)
+
+
+ALWAYS_FULFILLED: Criterion = _ConstantCrit(
+    "special-crit", "ALWAYS_FULFILLED", v="fulfilled"
+)
+NEVER_FULFILLED: Criterion = _ConstantCrit(
+    "special-crit", "NEVER_FULFILLED", v="not-fulfilled"
+)
 
 
 @typing.overload
@@ -936,11 +953,19 @@ class FutureMapping(DecisionEntity[Features]):
     @property
     def length(self) -> Value[Features]:
         """The number of items in the mapping"""
-        return SerVal("length", v=self)._with_syntax("prop")
+        return SerVal("property", p="length", v=self)._with_syntax(
+            "prop", as_args=["v", "p"]
+        )
 
     def keys(self) -> FutureArray[Features]:
         """Array of all keys of the mapping (indexed by numbers), in their sorting order"""
         return FutureViewMapping("view", "keys", self)
+
+    def sum(self) -> Value[Features]:
+        """Sum all values of the mapping, texts and collections count as zeros"""
+        return SerVal("property", p="sum", v=self)._with_syntax(
+            "prop", as_args=["v", "p"]
+        )
 
     def values(self) -> FutureArray[Features]:
         """Array of all values of the mapping (indexed by numbers), in the order of the sorted keys"""
@@ -1201,10 +1226,10 @@ class _Param(FutureMapping[Features]):
         """
         return self["my", *key]
 
-    @typing.overload
-    def doc(
-        self, scope1: Literal["blockcount"], scope2: Literal["group"], group: str, /
-    ) -> Value: ...
+    # @typing.overload
+    # def doc(
+    #     self, scope1: Literal["blockcount"], scope2: Literal["group"], group: str, /
+    # ) -> Value: ...
     @typing.overload
     def doc(
         self, scope1: Literal["blockcount"], scope2: Literal["opcode"], opcode: str, /
@@ -1222,8 +1247,8 @@ class _Param(FutureMapping[Features]):
         """
         return self["doc", *key]
 
-    def teststatus(self, *key: IntoValue):
-        return self["teststatus", *key]
+    # def teststatus(self, *key: IntoValue):
+    #     return self["teststatus", *key]
 
     def __repr__(self) -> str:
         return self._section.upper()
