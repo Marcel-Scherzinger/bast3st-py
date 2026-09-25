@@ -13,6 +13,7 @@ from .features import (
     FA_sendmsg_maintest,
     Features,
     Features2,
+    Features3,
 )
 
 
@@ -155,11 +156,19 @@ def end_this_test_immediatly(
 
 
 def set_flag(
-    *key: IntoTextValue[Features],
-    value: IntoValue[Features2],
-) -> Action[Features | Features2]:
+    first_key: IntoTextValue[Features],
+    *other_keys: IntoTextValue[Features2],
+    value: IntoValue[Features3],
+) -> Action[Features | Features2 | Features3]:
     """
     Set a custom key to a custom value that can be accessed using this key during other stages.
+
+    Note that empty strings take a special position as key-components.
+    If you assign a non-mapping value to ("level1", "level2") and then assign
+    a value to ("level1", "level2", "newlevel") a new level needs to be created to store the
+    second value. The first one will from there on be available as ("level1", "level2", "")
+    and no longer as ("level1", "level2") which will be the mapping containing "" and "newlevel".
+    But no one stops you from using empty strings as keys, it could just cause weird effects.
 
     Flags set during the evaluation of one value are typically only available after the completion
     of the entire evaluation i.e. a if a value that executed this action by catching an error
@@ -168,5 +177,11 @@ def set_flag(
 
     Flags form a nested mapping and the test specification is free to specify them
     in a useful hierarchy of levels for structuring communication.
+
+    You have to use at least one key level (you can't set the top-level flags mapping).
     """
-    return SerAct("set-flag", k=[Value.of(k) for k in key], v=Value.of(value))
+    return SerAct(
+        "set-flag",
+        k=[Value.of(first_key)] + [Value.of(k) for k in other_keys],
+        v=Value.of(value),
+    )
