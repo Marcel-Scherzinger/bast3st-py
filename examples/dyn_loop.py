@@ -1,6 +1,6 @@
 from bast3st import Bast3StSpec, OUTPUT
 from bast3st.actions import set_flag
-from bast3st.decisions import PARAM
+from bast3st.decisions import FLAGS, INPUT, PARAM
 
 
 spec = Bast3StSpec(
@@ -22,9 +22,17 @@ def criterion(a, b):
 cat = spec.new_category("1 bis 5, 6 bis 10")
 cat.new_test("1 bis 5", criterion=criterion(1, 5), input=[1, 5])
 print(
-    cat.new_test("6 bis 10", criterion=criterion(6, 10), input=[6, 10]).run_action(
-        set_flag("params", value=PARAM.doc("blockcount", "total"))
+    cat.new_test("6 bis 10", criterion=criterion(6, 10), input=[6, 10])
+    .run_action(set_flag("params", "1", value=PARAM.doc("blockcount", "total")))
+    .run_action(set_flag("params", "2", value="123"))
+    .run_action(
+        set_flag(
+            "params",
+            "3",
+            value=PARAM.doc("blockcount", "opcode", "event_whenflagclicked"),
+        )
     )
+    .run_action(set_flag("params1", value=FLAGS["params"].sum()))
 )
 print(spec)
 

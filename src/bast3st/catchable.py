@@ -15,6 +15,13 @@ class err(enum.Flag):
     They are not stable and not considered part of the api.
 
     (You can click on the `[source]` button to see how compound flags are defined.)
+
+    .. warning:: Compound error-values don't exist at the json level and are serialized
+        as a :code:`|`-separated list of their parts, so if e. g. a new server version
+        would introduce a new error kind, your previously (with an old version)
+        serialized and uploaded specification won't catch this error even though it
+        might belong to a group whose compound flag you used.
+        You then have to use a new version of this library to re-serialize the spec.
     """
 
     #: the status that was reported isn't among the ones in the allow-list

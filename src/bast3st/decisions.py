@@ -639,9 +639,12 @@ class _ConstantCrit(SerCrit):
         return str(self._label)
 
 
+#: a special criterion that is always fulfilled
 ALWAYS_FULFILLED: Criterion = _ConstantCrit(
     "special-crit", "ALWAYS_FULFILLED", v="fulfilled"
 )
+
+#: a special criterion that is never fulfilled
 NEVER_FULFILLED: Criterion = _ConstantCrit(
     "special-crit", "NEVER_FULFILLED", v="not-fulfilled"
 )
@@ -891,6 +894,10 @@ class FutureArray(typing.Protocol[Features]):
 
     (This type should not be instantiated directly)
     """
+
+    def sum(self) -> Value[Features]:
+        """Sum all values of the mapping, texts and collections count as zeros"""
+        ...
 
     def __getitem__(self, key: IntoValue[Features2]) -> Value[Features | Features2]: ...
     @property
@@ -1264,9 +1271,12 @@ RANDOMS: FutureArray[FS_read_rundata] = _Data("randoms")
 """:class:`FutureArray` that represents the random numbers a submission requested and got during the current test"""
 
 FLAGS: FutureMapping = _Data("flags")
+""":class:`FutureMapping` that allows reading arbitraty flags, see :ref:`concept-flags` for details"""
 
 LISTS: FutureMapping[FS_read_rundata] = _Data("lists")
 VARIABLES: FutureArray[FS_read_rundata] = _Data("variables")
 
 PARAM = _Param()  # type: ignore
+""":class:`FutureMapping` that allows reading set parameters, see :ref:`concept-params` for details"""
+
 BLOCKCOUNT: FutureMapping[Any] = PARAM.doc("blockcount")
