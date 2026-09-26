@@ -1277,6 +1277,6 @@ LISTS: FutureMapping[FS_read_rundata] = _Data("lists")
 VARIABLES: FutureArray[FS_read_rundata] = _Data("variables")
 
 PARAM = _Param()  # type: ignore
-""":class:`FutureMapping` that allows reading set parameters, see :ref:`concept-params` for details"""
+""":class:`FutureMapping` that allows reading set parameters, see :ref:`concept-param` for details"""
 
 BLOCKCOUNT: FutureMapping[Any] = PARAM.doc("blockcount")
